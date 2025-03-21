@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserTie, faMagic } from '@fortawesome/free-solid-svg-icons';
+import { faUserTie, faMagic, faHistory } from '@fortawesome/free-solid-svg-icons';
 
 const Navbar = () => {
   const location = useLocation();
@@ -24,6 +24,10 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-8">
             <Link to="/" className={location.pathname === '/' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>首頁</Link>
             <Link to="/projects" className={location.pathname === '/projects' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>我的專案</Link>
+            <Link to="/history" className={location.pathname === '/history' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>
+              <FontAwesomeIcon icon={faHistory} className="mr-1" />
+              生成歷史
+            </Link>
             <Link to="/prompt-editor" className={location.pathname === '/prompt-editor' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>
               <FontAwesomeIcon icon={faMagic} className="mr-1" />
               提示詞編輯
