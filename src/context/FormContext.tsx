@@ -1,0 +1,401 @@
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+
+// Define types for our form data
+export interface Education {
+  school: string;
+  degree: string;
+  major: string;
+  graduationYear: string;
+}
+
+export interface WorkExperience {
+  company: string;
+  position: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+  description: string;
+}
+
+export interface Skill {
+  name: string;
+  level: string;
+}
+
+export interface PersonalInfo {
+  name: string;
+  age: string;
+  education: Education[];
+  workExperience: WorkExperience[];
+  skills: Skill[];
+  projects: string;
+  awards: string;
+  interests: string;
+}
+
+export interface IndustrySettings {
+  industry?: string;
+  jobCategory?: string;
+  jobSubcategory?: string;
+  specificPosition?: string;
+  keywords: string[];
+  occasionType?: string;
+  introLength?: string;
+  expressionStyle?: string;
+  focusAreas?: string[];
+}
+
+export interface GenerationSettings {
+  duration: string;
+  customDuration: string;
+  language: string;
+  style: string;
+  structure: string;
+  useCustomPrompt: boolean;
+  promptTemplate: string;
+  tone: string;
+  outputLength: string;
+  highlightStrengths: boolean;
+  includeCallToAction: boolean;
+  focusOnRecentExperience: boolean;
+}
+
+export interface FormData {
+  personalInfo: PersonalInfo;
+  industrySettings: IndustrySettings;
+  generationSettings: GenerationSettings;
+}
+
+// 新增生成歷史記錄的介面
+export interface GenerationRecord {
+  id: string;  // 唯一識別符
+  timestamp: number;  // 生成時間戳記
+  projectId: string | number;  // 專案ID
+  projectTitle: string;  // 專案標題
+  formData: FormData;  // 生成時的表單資料
+  generatedText: string;  // 生成的文本
+  modelProvider: string;  // 模型提供者 (openai/gemini)
+  modelId: string;  // 模型ID
+  estimatedTokens: number;  // 估計的token數量
+  estimatedCost: number;  // 估計成本
+  promptTemplate: string;  // 使用的提示詞模板
+  actualPrompt: string;  // 實際發送給模型的提示詞
+}
+
+// Default values
+const defaultFormData: FormData = {
+  personalInfo: {
+    name: '',
+    age: '',
+    education: [{ school: '', degree: '', major: '', graduationYear: '' }],
+    workExperience: [{ company: '', position: '', startDate: '', endDate: '', isCurrent: false, description: '' }],
+    skills: [{ name: '', level: '' }],
+    projects: '',
+    awards: '',
+    interests: ''
+  },
+  industrySettings: {
+    industry: '',
+    jobCategory: '',
+    specificPosition: '',
+    keywords: []
+  },
+  generationSettings: {
+    duration: '60', // Default 1 minute
+    customDuration: '',
+    language: 'Chinese',
+    style: 'balanced',
+    structure: 'skills_first',
+    useCustomPrompt: false,
+    promptTemplate: '請根據以下信息生成一份專業的自我介紹，時間約為{duration}秒，語言為{language}，風格為{style}，重點突出{keywords}。自我介紹應包含個人背景、教育經歷、專業技能和工作經驗，特別強調與{industry}行業和{job_position}職位相關的能力和經驗。',
+    tone: 'Professional',
+    outputLength: 'Medium',
+    highlightStrengths: true,
+    includeCallToAction: true,
+    focusOnRecentExperience: false
+  }
+};
+
+// Context interface
+interface FormContextProps {
+  formData: FormData;
+  setFormData: React.Dispatch<React.SetStateAction<FormData>>;
+  updatePersonalInfo: (data: Partial<PersonalInfo>) => void;
+  updateIndustrySettings: (data: Partial<IndustrySettings>) => void;
+  updateGenerationSettings: (data: Partial<GenerationSettings>) => void;
+  addEducation: () => void;
+  updateEducation: (index: number, data: Partial<Education>) => void;
+  removeEducation: (index: number) => void;
+  addWorkExperience: () => void;
+  updateWorkExperience: (index: number, data: Partial<WorkExperience>) => void;
+  removeWorkExperience: (index: number) => void;
+  addSkill: () => void;
+  updateSkill: (index: number, data: Partial<Skill>) => void;
+  removeSkill: (index: number) => void;
+  addKeyword: (keyword: string) => void;
+  removeKeyword: (keyword: string) => void;
+  resetForm: () => void;
+  addGenerationRecord: (record: Omit<GenerationRecord, 'id' | 'timestamp'>) => string;
+  getGenerationRecords: () => GenerationRecord[];
+  getGenerationRecordById: (id: string) => GenerationRecord | undefined;
+  deleteGenerationRecord: (id: string) => void;
+}
+
+// Create context
+const FormContext = createContext<FormContextProps | undefined>(undefined);
+
+// Provider component
+export const FormProvider = ({ children }: { children: ReactNode }) => {
+  const [formData, setFormData] = useState<FormData>(defaultFormData);
+  // 新增生成歷史記錄的狀態
+  const [generationRecords, setGenerationRecords] = useState<GenerationRecord[]>(() => {
+    // 從 localStorage 載入歷史記錄
+    const storedRecords = localStorage.getItem('generationRecords');
+    if (storedRecords) {
+      try {
+        return JSON.parse(storedRecords);
+      } catch (error) {
+        console.error('Error parsing stored generation records:', error);
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const updatePersonalInfo = (data: Partial<PersonalInfo>) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        ...data
+      }
+    }));
+  };
+
+  const updateIndustrySettings = (data: Partial<IndustrySettings>) => {
+    setFormData(prev => ({
+      ...prev,
+      industrySettings: {
+        ...prev.industrySettings,
+        ...data
+      }
+    }));
+  };
+
+  const updateGenerationSettings = (data: Partial<GenerationSettings>) => {
+    setFormData(prev => ({
+      ...prev,
+      generationSettings: {
+        ...prev.generationSettings,
+        ...data
+      }
+    }));
+  };
+
+  const addEducation = () => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        education: [...prev.personalInfo.education, { school: '', degree: '', major: '', graduationYear: '' }]
+      }
+    }));
+  };
+
+  const updateEducation = (index: number, data: Partial<Education>) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        education: prev.personalInfo.education.map((education, i) =>
+          i === index ? { ...education, ...data } : education
+        )
+      }
+    }));
+  };
+
+  const removeEducation = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        education: prev.personalInfo.education.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const addWorkExperience = () => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        workExperience: [...prev.personalInfo.workExperience, { 
+          company: '', 
+          position: '', 
+          startDate: '', 
+          endDate: '', 
+          isCurrent: false, 
+          description: '' 
+        }]
+      }
+    }));
+  };
+
+  const updateWorkExperience = (index: number, data: Partial<WorkExperience>) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        workExperience: prev.personalInfo.workExperience.map((experience, i) =>
+          i === index ? { ...experience, ...data } : experience
+        )
+      }
+    }));
+  };
+
+  const removeWorkExperience = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        workExperience: prev.personalInfo.workExperience.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const addSkill = () => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        skills: [...prev.personalInfo.skills, { name: '', level: '' }]
+      }
+    }));
+  };
+
+  const updateSkill = (index: number, data: Partial<Skill>) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        skills: prev.personalInfo.skills.map((skill, i) =>
+          i === index ? { ...skill, ...data } : skill
+        )
+      }
+    }));
+  };
+
+  const removeSkill = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      personalInfo: {
+        ...prev.personalInfo,
+        skills: prev.personalInfo.skills.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const addKeyword = (keyword: string) => {
+    if (!formData.industrySettings.keywords.includes(keyword)) {
+      setFormData(prev => ({
+        ...prev,
+        industrySettings: {
+          ...prev.industrySettings,
+          keywords: [...prev.industrySettings.keywords, keyword]
+        }
+      }));
+    }
+  };
+
+  const removeKeyword = (keyword: string) => {
+    setFormData(prev => ({
+      ...prev,
+      industrySettings: {
+        ...prev.industrySettings,
+        keywords: prev.industrySettings.keywords.filter(k => k !== keyword)
+      }
+    }));
+  };
+
+  const resetForm = () => {
+    setFormData(defaultFormData);
+  };
+
+  // 新增生成記錄方法
+  const addGenerationRecord = (record: Omit<GenerationRecord, 'id' | 'timestamp'>) => {
+    const id = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const timestamp = Date.now();
+    
+    const newRecord: GenerationRecord = {
+      ...record,
+      id,
+      timestamp
+    };
+    
+    setGenerationRecords(prev => {
+      const updatedRecords = [...prev, newRecord];
+      // 儲存到 localStorage
+      localStorage.setItem('generationRecords', JSON.stringify(updatedRecords));
+      return updatedRecords;
+    });
+    
+    return id;
+  };
+  
+  // 獲取所有生成記錄
+  const getGenerationRecords = () => {
+    return generationRecords;
+  };
+  
+  // 根據 ID 獲取特定生成記錄
+  const getGenerationRecordById = (id: string) => {
+    return generationRecords.find(record => record.id === id);
+  };
+  
+  // 刪除特定生成記錄
+  const deleteGenerationRecord = (id: string) => {
+    setGenerationRecords(prev => {
+      const updatedRecords = prev.filter(record => record.id !== id);
+      // 儲存到 localStorage
+      localStorage.setItem('generationRecords', JSON.stringify(updatedRecords));
+      return updatedRecords;
+    });
+  };
+
+  return (
+    <FormContext.Provider value={{
+      formData,
+      setFormData,
+      updatePersonalInfo,
+      updateIndustrySettings,
+      updateGenerationSettings,
+      addEducation,
+      updateEducation,
+      removeEducation,
+      addWorkExperience,
+      updateWorkExperience,
+      removeWorkExperience,
+      addSkill,
+      updateSkill,
+      removeSkill,
+      addKeyword,
+      removeKeyword,
+      resetForm,
+      addGenerationRecord,
+      getGenerationRecords,
+      getGenerationRecordById,
+      deleteGenerationRecord
+    }}>
+      {children}
+    </FormContext.Provider>
+  );
+};
+
+// Custom hook for using the form context
+export const useFormContext = () => {
+  const context = useContext(FormContext);
+  if (context === undefined) {
+    throw new Error('useFormContext must be used within a FormProvider');
+  }
+  return context;
+}; 

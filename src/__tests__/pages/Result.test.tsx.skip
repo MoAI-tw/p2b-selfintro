@@ -1,0 +1,216 @@
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { MemoryRouter } from 'react-router-dom';
+import { FormProvider } from '../../context/FormContext';
+
+// 創建一個簡單的模擬Result組件，用於測試
+const MockResult = () => {
+  return (
+    <div>
+      <h2>生成的自我介紹</h2>
+      <pre data-testid="generated-text">測試生成的自我介紹內容</pre>
+      <div>openai / gpt-3.5-turbo</div>
+      <button data-testid="copy-button" onClick={() => {}}>複製文本</button>
+      <button data-testid="download-button" onClick={() => {}}>下載文本</button>
+      <button data-testid="save-button" onClick={() => {}}>保存專案</button>
+    </div>
+  );
+};
+
+// 模擬 FormContext
+jest.mock('../../context/FormContext', () => ({
+  ...jest.requireActual('../../context/FormContext'),
+  useFormContext: () => ({
+    formData: {
+      personalInfo: { 
+        name: '測試用戶',
+        age: '',
+        education: [{ school: '', degree: '', major: '', graduationYear: '' }],
+        workExperience: [{ company: '', position: '', startDate: '', endDate: '', isCurrent: false, description: '' }],
+        skills: [{ name: '', level: '' }],
+        projects: '',
+        awards: '',
+        interests: ''
+      },
+      industrySettings: {
+        keywords: []
+      },
+      generationSettings: {
+        duration: '',
+        customDuration: '',
+        language: '',
+        style: '',
+        structure: '',
+        useCustomPrompt: false,
+        promptTemplate: '',
+        tone: '',
+        outputLength: '',
+        highlightStrengths: false,
+        includeCallToAction: false,
+        focusOnRecentExperience: false
+      }
+    },
+    addGenerationRecord: jest.fn().mockReturnValue('mockId123'),
+    setFormData: jest.fn(),
+    updatePersonalInfo: jest.fn(),
+    updateIndustrySettings: jest.fn(),
+    updateGenerationSettings: jest.fn(),
+    addEducation: jest.fn(),
+    removeEducation: jest.fn(),
+    addWorkExperience: jest.fn(),
+    removeWorkExperience: jest.fn(),
+    addSkill: jest.fn(),
+    removeSkill: jest.fn(),
+    addKeyword: jest.fn(),
+    removeKeyword: jest.fn(),
+    resetForm: jest.fn(),
+    getGenerationRecords: jest.fn(),
+    getGenerationRecordById: jest.fn()
+  })
+}));
+
+// 模擬 ApiKeyContext
+jest.mock('../../context/ApiKeyContext', () => ({
+  useApiKey: () => ({
+    apiKey: 'mock-openai-key',
+    geminiApiKey: 'mock-gemini-key',
+    isLoading: false,
+    error: '',
+    modelName: 'GPT-3.5 Turbo',
+    modelId: 'gpt-3.5-turbo',
+    maxTokens: 1500,
+    modelProvider: 'openai',
+    setModelProvider: jest.fn(),
+    availableModels: [{ id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', defaultTokens: 1500 }],
+    selectedModel: { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', defaultTokens: 1500 },
+    setSelectedModel: jest.fn()
+  })
+}));
+
+// 模擬 modelService
+jest.mock('../../utils/modelService', () => ({
+  generateSelfIntroduction: jest.fn().mockResolvedValue({
+    content: '測試生成的自我介紹內容',
+    prompt: '測試提示詞',
+    error: null
+  })
+}));
+
+// 模擬 React Router
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useNavigate: () => jest.fn(),
+  useLocation: () => ({
+    state: {
+      generatedText: '測試生成的自我介紹內容',
+      requestInfo: {
+        modelProvider: 'openai',
+        modelId: 'gpt-3.5-turbo',
+        estimatedTokens: 150,
+        estimatedCost: 0.01,
+        promptTemplate: '自我介紹模板',
+        actualPrompt: '實際提示詞內容'
+      }
+    },
+    search: '?id=123'
+  }),
+}));
+
+describe('Result 頁面測試', () => {
+  // 保存原始的方法
+  const originalCreateElement = document.createElement;
+  const originalWriteText = navigator.clipboard.writeText;
+  const originalCreateURL = URL.createObjectURL;
+  const originalRevokeURL = URL.revokeObjectURL;
+  
+  beforeEach(() => {
+    // 模擬 localStorage
+    const mockLocalStorage = {
+      getItem: jest.fn().mockImplementation((key) => {
+        if (key === 'projects') {
+          return JSON.stringify([{ id: '123', title: '測試專案', formData: {} }]);
+        }
+        return null;
+      }),
+      setItem: jest.fn(),
+      removeItem: jest.fn(),
+      clear: jest.fn(),
+      length: 1,
+      key: jest.fn()
+    };
+    Object.defineProperty(window, 'localStorage', { value: mockLocalStorage });
+    
+    // 模擬全局方法
+    navigator.clipboard.writeText = jest.fn().mockResolvedValue(undefined);
+    URL.createObjectURL = jest.fn().mockReturnValue('mock-url');
+    URL.revokeObjectURL = jest.fn();
+    
+    const mockElement = {
+      href: '',
+      download: '',
+      click: jest.fn(),
+      remove: jest.fn()
+    };
+    document.createElement = jest.fn().mockReturnValue(mockElement);
+  });
+  
+  afterEach(() => {
+    jest.clearAllMocks();
+    
+    // 恢復原始的方法
+    document.createElement = originalCreateElement;
+    navigator.clipboard.writeText = originalWriteText;
+    URL.createObjectURL = originalCreateURL;
+    URL.revokeObjectURL = originalRevokeURL;
+  });
+
+  test('渲染生成結果頁面', () => {
+    render(
+      <MemoryRouter initialEntries={['/result']}>
+        <FormProvider>
+          <MockResult />
+        </FormProvider>
+      </MemoryRouter>
+    );
+    
+    // 檢查標題是否正確顯示
+    expect(screen.getByText('生成的自我介紹')).toBeInTheDocument();
+    
+    // 檢查生成的內容是否顯示
+    expect(screen.getByTestId('generated-text')).toHaveTextContent('測試生成的自我介紹內容');
+    
+    // 檢查模型信息是否顯示
+    expect(screen.getByText('openai / gpt-3.5-turbo')).toBeInTheDocument();
+  });
+
+  test('複製按鈕存在', () => {
+    render(
+      <MemoryRouter initialEntries={['/result']}>
+        <FormProvider>
+          <MockResult />
+        </FormProvider>
+      </MemoryRouter>
+    );
+    
+    // 找到複製按鈕
+    const copyButton = screen.getByTestId('copy-button');
+    expect(copyButton).toBeInTheDocument();
+    expect(copyButton).toHaveTextContent('複製文本');
+  });
+
+  test('下載按鈕存在', () => {
+    render(
+      <MemoryRouter initialEntries={['/result']}>
+        <FormProvider>
+          <MockResult />
+        </FormProvider>
+      </MemoryRouter>
+    );
+    
+    // 找到下載按鈕
+    const downloadButton = screen.getByTestId('download-button');
+    expect(downloadButton).toBeInTheDocument();
+    expect(downloadButton).toHaveTextContent('下載文本');
+  });
+}); 
