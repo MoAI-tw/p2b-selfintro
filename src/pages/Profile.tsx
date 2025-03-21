@@ -402,11 +402,11 @@ const Profile = () => {
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                           <option value="">請選擇學位</option>
-                          <option value="high_school">高中</option>
-                          <option value="associate">專科</option>
-                          <option value="bachelor">學士</option>
-                          <option value="master">碩士</option>
-                          <option value="phd">博士</option>
+                          <option value="高中">高中</option>
+                          <option value="專科">專科</option>
+                          <option value="學士">學士</option>
+                          <option value="碩士">碩士</option>
+                          <option value="博士">博士</option>
                         </select>
                       </div>
                     </div>

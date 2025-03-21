@@ -10,6 +10,8 @@ interface SampleProject {
       email: string;
       phone: string;
       location: string;
+      age?: string;
+      awards?: string;
       education: string[];
       workExperience: {
         title: string;
@@ -22,6 +24,7 @@ interface SampleProject {
       additionalInfo?: string;
     };
     industrySettings: {
+      industry: string;
       jobCategory: string;
       jobSubcategory: string;
       specificPosition?: string;
@@ -53,9 +56,11 @@ export const sampleProjects: SampleProject[] = [
         email: "example@mail.com",
         phone: "0912-345-678",
         location: "台北市",
+        age: "26",
+        awards: "新創技術黑客松冠軍、最佳程式設計師獎",
         education: [
-          "國立台灣大學 資訊工程學系 學士 (2016-2020)",
-          "國立台灣大學 資訊工程研究所 碩士 (2020-2022)"
+          "國立台灣大學 學士 資訊工程學系 (2016-2020)",
+          "國立台灣大學 碩士 資訊工程研究所 (2020-2022)"
         ],
         workExperience: [
           {
@@ -84,6 +89,7 @@ export const sampleProjects: SampleProject[] = [
         interests: ["網頁技術探索", "開源專案貢獻", "系統架構設計", "UI/UX設計"]
       },
       industrySettings: {
+        industry: "tech",
         jobCategory: "it",
         jobSubcategory: "web_dev",
         specificPosition: "資深前端工程師",
@@ -114,9 +120,11 @@ export const sampleProjects: SampleProject[] = [
         email: "example@mail.com",
         phone: "0923-456-789",
         location: "台北市",
+        age: "30",
+        awards: "最佳投資分析師獎、財務報告競賽冠軍",
         education: [
-          "國立政治大學 財務金融學系 學士 (2015-2019)",
-          "國立臺灣大學 財務金融研究所 碩士 (2019-2021)"
+          "國立政治大學 學士 財務金融學系 (2015-2019)",
+          "國立臺灣大學 碩士 財務金融研究所 (2019-2021)"
         ],
         workExperience: [
           {
@@ -145,6 +153,7 @@ export const sampleProjects: SampleProject[] = [
         interests: ["總體經濟研究", "ESG投資", "金融科技", "區塊鏈技術"]
       },
       industrySettings: {
+        industry: "finance",
         jobCategory: "finance",
         jobSubcategory: "financial_analyst",
         specificPosition: "高級財務分析師",
@@ -175,8 +184,10 @@ export const sampleProjects: SampleProject[] = [
         email: "example@mail.com",
         phone: "0934-567-890",
         location: "台北市",
+        age: "28",
+        awards: "數位行銷傑出青年獎、社群行銷創新競賽第一名",
         education: [
-          "國立台灣師範大學 大眾傳播學系 學士 (2017-2021)"
+          "國立台灣師範大學 學士 大眾傳播學系 (2017-2021)"
         ],
         workExperience: [
           {
@@ -205,9 +216,10 @@ export const sampleProjects: SampleProject[] = [
         interests: ["新媒體趨勢", "消費者心理學", "視覺設計", "品牌策略"]
       },
       industrySettings: {
+        industry: "media",
         jobCategory: "marketing",
         jobSubcategory: "marketing_specialist",
-        specificPosition: "資深數位行銷專員",
+        specificPosition: "資深社群媒體行銷專員",
         keywords: ["數位行銷", "社群媒體管理", "內容行銷", "數據分析", "創意思考", "團隊協作", "溝通表達"],
         focusAreas: ["experience", "skills", "personality"]
       },
@@ -235,9 +247,11 @@ export const sampleProjects: SampleProject[] = [
         email: "example@mail.com",
         phone: "0945-678-901",
         location: "台中市",
+        age: "29",
+        awards: "人力資源管理傑出貢獻獎、優秀人資專員",
         education: [
-          "國立中興大學 企業管理學系 學士 (2015-2019)",
-          "國立政治大學 人力資源管理研究所 碩士 (2019-2021)"
+          "國立中興大學 學士 企業管理學系 (2015-2019)",
+          "國立政治大學 碩士 人力資源管理研究所 (2019-2021)"
         ],
         workExperience: [
           {
@@ -266,6 +280,7 @@ export const sampleProjects: SampleProject[] = [
         interests: ["組織發展", "職場心理學", "人才管理創新", "多元包容職場"]
       },
       industrySettings: {
+        industry: "services",
         jobCategory: "management",
         jobSubcategory: "human_resource_staff",
         specificPosition: "資深人力資源專員",
@@ -296,8 +311,10 @@ export const sampleProjects: SampleProject[] = [
         email: "example@mail.com",
         phone: "0956-789-012",
         location: "台北市",
+        age: "27",
+        awards: "設計新秀獎、年度最佳使用者介面設計獎",
         education: [
-          "國立台灣藝術大學 視覺傳達設計學系 學士 (2016-2020)"
+          "國立台灣藝術大學 學士 視覺傳達設計學系 (2016-2020)"
         ],
         workExperience: [
           {
@@ -326,9 +343,10 @@ export const sampleProjects: SampleProject[] = [
         interests: ["設計思考", "使用者心理學", "互動設計", "數位藝術"]
       },
       industrySettings: {
+        industry: "tech",
         jobCategory: "design",
         jobSubcategory: "ui_ux_design",
-        specificPosition: "資深UI/UX設計師",
+        specificPosition: "資深使用者介面設計師",
         keywords: ["使用者體驗", "視覺設計", "設計思考", "使用者研究", "創意表達", "團隊合作", "溝通能力"],
         focusAreas: ["skills", "experience", "achievements"]
       },
@@ -357,7 +375,7 @@ export const sampleProjects: SampleProject[] = [
         phone: "0967-890-123",
         location: "台中市",
         education: [
-          "國立陽明交通大學 護理學系 學士 (2014-2018)",
+          "國立陽明交通大學 學士 護理學系 (2014-2018)",
           "台大醫院護理師執照 (2018)"
         ],
         workExperience: [
@@ -387,14 +405,78 @@ export const sampleProjects: SampleProject[] = [
         interests: ["醫療新知", "預防醫學", "長期照護", "身心健康照護"]
       },
       industrySettings: {
-        jobCategory: "research",
-        jobSubcategory: "nurse",
-        specificPosition: "資深專科護理師",
+        industry: "healthcare",
+        jobCategory: "medical",
+        jobSubcategory: "nursing",
+        specificPosition: "加護病房專科護理師",
         keywords: ["專業照護", "臨床技能", "團隊合作", "同理心", "細心負責", "溝通技巧", "壓力管理"],
         focusAreas: ["experience", "skills", "personality"]
       },
       generationSettings: {
         tone: "Confident",
+        outputLength: "Medium",
+        language: "Chinese",
+        highlightStrengths: true,
+        includeCallToAction: true,
+        focusOnRecentExperience: true
+      }
+    }
+  },
+  
+  // 已修正的教師範例
+  {
+    id: "sample-teacher",
+    title: "教師自我介紹範例",
+    status: "completed",
+    lastEdited: new Date().toISOString().slice(0, 7),
+    description: "教育專業人員的自我介紹專案",
+    formData: {
+      personalInfo: {
+        name: "李老師",
+        email: "example@mail.com",
+        phone: "0978-901-234",
+        location: "台中市",
+        age: "40",
+        awards: "教育傑出貢獻獎、優秀教師",
+        education: [
+          "國立台灣師範大學 學士 教育學系 (2000-2004)",
+          "國立台灣師範大學 碩士 教育研究所 (2004-2006)"
+        ],
+        workExperience: [
+          {
+            title: "高中數學專任教師",
+            company: "台中市立高中",
+            period: "2006-09 - 至今",
+            description: "負責高中數學課程的教學，設計並實施教學計劃，提升學生數學能力。參與校內外教育研討會，與其他教師交流教學經驗。"
+          },
+          {
+            title: "教育實習生",
+            company: "台中市立高中",
+            period: "2005-07 - 2005-12",
+            description: "參與實習教師的教學實踐，學習課程設計與教學方法。"
+          }
+        ],
+        skills: [
+          "數學教學", 
+          "班級經營", 
+          "學生輔導", 
+          "教學創新", 
+          "教育熱忱", 
+          "溝通能力",
+          "耐心細心"
+        ],
+        interests: ["教育研究", "教學方法探索", "學生輔導", "教育政策"]
+      },
+      industrySettings: {
+        industry: "education",
+        jobCategory: "education",
+        jobSubcategory: "high_school_teacher",
+        specificPosition: "高中數學專任教師",
+        keywords: ["數學教學", "班級經營", "學生輔導", "教學創新", "教育熱忱", "溝通能力", "耐心細心"],
+        focusAreas: ["teaching_skills", "experience", "personality"]
+      },
+      generationSettings: {
+        tone: "Friendly",
         outputLength: "Medium",
         language: "Chinese",
         highlightStrengths: true,
