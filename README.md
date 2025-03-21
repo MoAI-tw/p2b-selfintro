@@ -2,6 +2,10 @@
 
 一個幫助用戶生成專業自我介紹的Web應用，支持多種大型語言模型 (LLM)，包括 OpenAI GPT 和 Google Gemini。
 
+## 線上演示
+
+訪問我們的 GitHub Pages 部署版本：[Self-Introduction Generator](https://moai-tw.github.io/p2b-selfintro/)
+
 ## 功能特色
 
 - 完整的個人資料輸入表單，包括教育背景、工作經驗、技能等
@@ -104,6 +108,23 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## 部署
+
+### GitHub Pages 部署
+
+此專案已配置為使用 GitHub Actions 自動部署到 GitHub Pages。任何推送到 `main` 或 `master` 分支的更改都會觸發部署流程。
+
+1. 確保您的專案已經設置正確的基本路徑（在 `vite.config.ts` 中的 `base` 選項）
+2. 推送您的更改到主分支
+3. GitHub Action 將自動構建和部署您的應用
+4. 部署完成後，您可以在 `https://[你的 GitHub 用戶名].github.io/p2b-selfintro/` 訪問您的應用
+
+您還可以手動觸發部署：
+1. 前往您的 GitHub 倉庫
+2. 點擊 "Actions" 標籤
+3. 在左側菜單中選擇 "Deploy to GitHub Pages" 工作流
+4. 點擊 "Run workflow" 按鈕
 
 ## 技術棧
 

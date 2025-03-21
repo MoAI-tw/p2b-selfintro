@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "https://moai-tw.github.io/p2b-selfintro/",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
