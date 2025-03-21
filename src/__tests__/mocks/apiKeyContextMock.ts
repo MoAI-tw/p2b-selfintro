@@ -33,5 +33,16 @@ const mockUseApiKey = {
   setSelectedModel: jest.fn()
 };
 
+// Add a simple test to prevent file from failing as a test suite
+// This is needed because Jest treats all files in __tests__ directory as test files
+describe('ApiKeyContextMock', () => {
+  it('should export the mock object correctly', () => {
+    expect(mockUseApiKey).toBeDefined();
+    expect(mockUseApiKey.apiKey).toBe('test-api-key');
+    expect(mockUseApiKey.modelProvider).toBe('openai');
+    expect(mockUseApiKey.setModelProvider).toBeDefined();
+  });
+});
+
 // Export the mock
 export default mockUseApiKey; 

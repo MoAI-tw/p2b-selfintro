@@ -18,6 +18,7 @@ import Features from './pages/Features';
 import UseCases from './pages/UseCases';
 import FAQ from './pages/FAQ';
 import History from './pages/History';
+import PromptEditor from './pages/PromptEditor';
 
 // 滾動復位組件
 function ScrollToTop() {
@@ -55,6 +56,7 @@ function App() {
                     <Route path="/use-cases" element={<UseCases />} />
                     <Route path="/faq" element={<FAQ />} />
                     <Route path="/history" element={<History />} />
+                    <Route path="/prompt-editor" element={<PromptEditor />} />
                   </Routes>
                 </Suspense>
               </main>

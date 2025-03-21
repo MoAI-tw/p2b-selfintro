@@ -40,7 +40,7 @@ const ProgressBar = ({ currentStep }: ProgressBarProps) => {
             <div className={`flex-1 h-1 mx-2 ${currentStep >= 3 ? 'bg-indigo-600' : 'bg-gray-200'}`}></div>
             
             <Link 
-              to="/form" 
+              to="/settings" 
               className={`flex items-center ${currentStep >= 3 ? 'text-indigo-600' : 'text-gray-400'}`}
             >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${

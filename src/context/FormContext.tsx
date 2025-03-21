@@ -66,6 +66,20 @@ export interface FormData {
   generationSettings: GenerationSettings;
 }
 
+// 新增生成結果暫存介面
+export interface GenerationResult {
+  text: string;
+  prompt: string;
+  projectTitle: string;
+  projectId?: string | number;
+  modelProvider: string;
+  modelId: string;
+  estimatedTokens: number;
+  estimatedCost: number;
+  errorMessage?: string;
+  timestamp: number;
+}
+
 // 新增生成歷史記錄的介面
 export interface GenerationRecord {
   id: string;  // 唯一識別符
@@ -139,6 +153,12 @@ interface FormContextProps {
   getGenerationRecords: () => GenerationRecord[];
   getGenerationRecordById: (id: string) => GenerationRecord | undefined;
   deleteGenerationRecord: (id: string) => void;
+  
+  // 新增生成結果暫存相關方法
+  storeGenerationResult: (result: Omit<GenerationResult, 'timestamp'>) => void;
+  getStoredGenerationResult: () => GenerationResult | null;
+  clearStoredGenerationResult: () => void;
+  isGenerationResultStored: () => boolean;
 }
 
 // Create context
@@ -160,6 +180,21 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
       }
     }
     return [];
+  });
+  
+  // 新增生成結果暫存的狀態
+  const [storedGenerationResult, setStoredGenerationResult] = useState<GenerationResult | null>(() => {
+    // 從 sessionStorage 載入暫存的生成結果
+    const storedResult = sessionStorage.getItem('currentGenerationResult');
+    if (storedResult) {
+      try {
+        return JSON.parse(storedResult);
+      } catch (error) {
+        console.error('Error parsing stored generation result:', error);
+        return null;
+      }
+    }
+    return null;
   });
 
   const updatePersonalInfo = (data: Partial<PersonalInfo>) => {
@@ -362,6 +397,81 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  // 儲存生成結果到暫存
+  const storeGenerationResult = (result: Omit<GenerationResult, 'timestamp'>) => {
+    console.log('[FORM_CONTEXT] 開始儲存生成結果', {
+      hasText: !!result.text,
+      textLength: result.text?.length || 0,
+      projectTitle: result.projectTitle,
+      projectId: result.projectId,
+      modelProvider: result.modelProvider,
+      modelId: result.modelId
+    });
+    
+    const resultWithTimestamp: GenerationResult = {
+      ...result,
+      timestamp: Date.now()
+    };
+    
+    setStoredGenerationResult(resultWithTimestamp);
+    
+    // 儲存到 sessionStorage 以便跨頁面保持狀態
+    try {
+      sessionStorage.setItem('currentGenerationResult', JSON.stringify(resultWithTimestamp));
+      console.log('[FORM_CONTEXT] 成功儲存生成結果到 sessionStorage');
+      
+      // 檢查儲存結果
+      const storedValue = sessionStorage.getItem('currentGenerationResult');
+      console.log('[FORM_CONTEXT] sessionStorage 中的生成結果', {
+        exists: !!storedValue,
+        length: storedValue?.length || 0
+      });
+    } catch (error) {
+      console.error('[FORM_CONTEXT] 儲存生成結果到 sessionStorage 時發生錯誤:', error);
+    }
+  };
+  
+  // 獲取暫存的生成結果
+  const getStoredGenerationResult = () => {
+    console.log('[FORM_CONTEXT] 嘗試獲取暫存的生成結果');
+    try {
+      const stored = sessionStorage.getItem('currentGenerationResult');
+      console.log('[FORM_CONTEXT] sessionStorage 中的生成結果狀態', { 
+        exists: !!stored,
+        length: stored?.length || 0
+      });
+      
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        console.log('[FORM_CONTEXT] 成功解析生成結果', { 
+          timestamp: parsed.timestamp,
+          hasText: !!parsed.text,
+          textLength: parsed.text?.length || 0
+        });
+        return parsed;
+      }
+    } catch (error) {
+      console.error('[FORM_CONTEXT] 獲取或解析生成結果時發生錯誤:', error);
+    }
+    
+    console.log('[FORM_CONTEXT] 沒有找到暫存的生成結果');
+    return storedGenerationResult;
+  };
+  
+  // 清除暫存的生成結果
+  const clearStoredGenerationResult = () => {
+    console.log('[FORM_CONTEXT] 清除暫存的生成結果');
+    setStoredGenerationResult(null);
+    sessionStorage.removeItem('currentGenerationResult');
+  };
+  
+  // 檢查是否有暫存的生成結果
+  const isGenerationResultStored = () => {
+    const result = storedGenerationResult !== null;
+    console.log('[FORM_CONTEXT] 檢查是否有暫存的生成結果', { exists: result });
+    return result;
+  };
+
   return (
     <FormContext.Provider value={{
       formData,
@@ -384,7 +494,12 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
       addGenerationRecord,
       getGenerationRecords,
       getGenerationRecordById,
-      deleteGenerationRecord
+      deleteGenerationRecord,
+      // 新增生成結果暫存相關方法
+      storeGenerationResult,
+      getStoredGenerationResult,
+      clearStoredGenerationResult,
+      isGenerationResultStored
     }}>
       {children}
     </FormContext.Provider>

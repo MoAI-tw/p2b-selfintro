@@ -3,10 +3,9 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useFormContext, GenerationRecord } from '../context/FormContext';
 import { useApiKey } from '../context/ApiKeyContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faCopy, faDownload, faRedo, faEdit, faThumbsUp, faThumbsDown, faSave, faTimes, faCheck, faExclamationCircle, faHistory } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faCopy, faDownload, faRedo, faEdit, faThumbsUp, faThumbsDown, faSave, faTimes, faCheck, faExclamationCircle, faHistory, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { generateSelfIntroduction } from '../utils/modelService';
 import Modal from '../components/Modal';
-import CostEstimator from '../components/CostEstimator';
 import GenerationHistory from '../components/GenerationHistory';
 
 const Result: React.FC = () => {
@@ -17,7 +16,11 @@ const Result: React.FC = () => {
     setFormData, 
     addGenerationRecord,
     getGenerationRecords,
-    getGenerationRecordById
+    getGenerationRecordById,
+    getStoredGenerationResult,
+    isGenerationResultStored,
+    clearStoredGenerationResult,
+    storeGenerationResult
   } = useFormContext();
   
   const { 
@@ -26,7 +29,6 @@ const Result: React.FC = () => {
     modelProvider, 
     isLoading: isApiKeyLoading, 
     error: apiKeyError,
-    modelName,
     modelId,
     selectedModel
   } = useApiKey();
@@ -46,79 +48,249 @@ const Result: React.FC = () => {
   const [projectId, setProjectId] = useState<string | number>('');
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyRecordId, setHistoryRecordId] = useState<string | null>(null);
-
-  // Check for project name and ID in URL params on component mount
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  
+  // 用於追蹤初始化是否已完成
+  const isInitialized = useRef(false);
+  
+  // 記錄 sessionStorage 狀態的函數
+  const logSessionStorageState = () => {
+    console.log('[RESULT] 檢查 sessionStorage 狀態');
+    try {
+      // 列出所有 sessionStorage keys
+      const keys = Object.keys(sessionStorage);
+      console.log('[RESULT] sessionStorage keys:', keys);
+      
+      // 檢查是否有 currentGenerationResult
+      const hasGenerationResult = sessionStorage.getItem('currentGenerationResult') !== null;
+      console.log('[RESULT] currentGenerationResult 存在:', hasGenerationResult);
+      
+      if (hasGenerationResult) {
+        const storedValue = sessionStorage.getItem('currentGenerationResult');
+        console.log('[RESULT] currentGenerationResult 長度:', storedValue?.length || 0);
+        
+        try {
+          const parsed = JSON.parse(storedValue || '{}');
+          console.log('[RESULT] currentGenerationResult 內容摘要:', {
+            hasText: !!parsed.text,
+            textLength: parsed.text?.length || 0,
+            projectTitle: parsed.projectTitle,
+            timestamp: parsed.timestamp,
+            modelProvider: parsed.modelProvider
+          });
+        } catch (parseError) {
+          console.error('[RESULT] 解析 currentGenerationResult 失敗:', parseError);
+        }
+      }
+    } catch (error) {
+      console.error('[RESULT] 檢查 sessionStorage 時發生錯誤:', error);
+    }
+  };
+  
+  // 初始化頁面
   useEffect(() => {
+    console.log('[RESULT] 組件載入');
+    logSessionStorageState();
+    
+    // 如果已經初始化過，則退出
+    if (isInitialized.current) {
+      console.log('[RESULT] 組件已經初始化過，跳過重複初始化');
+      return;
+    }
+    
     const searchParams = new URLSearchParams(location.search);
+    
+    // 1. 首先檢查是否從歷史記錄載入
+    const recordId = searchParams.get('record');
+    if (recordId) {
+      setHistoryRecordId(recordId);
+      const record = getGenerationRecordById(recordId);
+      if (record) {
+        loadFromHistoryRecord(record);
+        isInitialized.current = true;
+        return; // 從歷史記錄載入後不需進行其他初始化
+      }
+    }
+    
+    // 2. 接著從 URL 獲取專案基本資訊
     const nameFromUrl = searchParams.get('project_name');
     const idFromUrl = searchParams.get('id');
     
     if (nameFromUrl) {
       setProjectTitle(nameFromUrl);
-    } else if (idFromUrl) {
-      // Load project by ID from localStorage
+    }
+    
+    if (idFromUrl) {
+      setProjectId(idFromUrl);
+      
+      // 從 localStorage 載入專案資料
       const storedProjects = localStorage.getItem('projects');
       if (storedProjects) {
         try {
           const projects = JSON.parse(storedProjects);
           const project = projects.find((p: any) => p.id.toString() === idFromUrl);
           if (project) {
-            setProjectTitle(project.title);
+            // 更新專案標題（如果 URL 中沒有指定）
+            if (!nameFromUrl) {
+              setProjectTitle(project.title);
+            }
             
-            // 如果專案有表單數據，則更新 FormContext
+            // 載入專案的表單資料
             if (project.formData) {
               setFormData(project.formData);
             }
           }
         } catch (error) {
-          console.error('Error parsing stored projects:', error);
+          console.error('解析專案資料時發生錯誤:', error);
         }
       }
     }
-  }, [location, setFormData]);
-
-  // Validate project title when it changes
+    
+    // 3. 最後，嘗試從暫存中獲取生成結果
+    if (isGenerationResultStored()) {
+      console.log('[RESULT] 發現暫存的生成結果');
+      const storedResult = getStoredGenerationResult();
+      if (storedResult) {
+        console.log('[RESULT] 成功獲取暫存的生成結果', {
+          textLength: storedResult.text.length,
+          projectTitle: storedResult.projectTitle,
+          projectId: storedResult.projectId,
+          timestamp: storedResult.timestamp
+        });
+        
+        // 設定生成結果相關資訊
+        setGeneratedText(storedResult.text);
+        setActualPrompt(storedResult.prompt);
+        setEstimatedCost(storedResult.estimatedCost);
+        
+        // 如有必要，更新專案資訊
+        if (!nameFromUrl && storedResult.projectTitle) {
+          console.log('[RESULT] 使用暫存結果的專案標題:', storedResult.projectTitle);
+          setProjectTitle(storedResult.projectTitle);
+        }
+        
+        if (!idFromUrl && storedResult.projectId) {
+          console.log('[RESULT] 使用暫存結果的專案ID:', storedResult.projectId);
+          setProjectId(storedResult.projectId);
+        }
+        
+        // 記錄到生成歷史
+        const currentProjectId = idFromUrl || (storedResult.projectId ? String(storedResult.projectId) : '');
+        console.log('[RESULT] 添加生成記錄', {
+          projectId: currentProjectId,
+          projectTitle: storedResult.projectTitle,
+          modelProvider: storedResult.modelProvider,
+          modelId: storedResult.modelId
+        });
+        
+        addGenerationRecord({
+          projectId: currentProjectId,
+          projectTitle: storedResult.projectTitle,
+          formData: { ...formData },
+          generatedText: storedResult.text,
+          modelProvider,
+          modelId,
+          estimatedTokens: storedResult.estimatedTokens,
+          estimatedCost: storedResult.estimatedCost,
+          promptTemplate: formData.generationSettings.promptTemplate,
+          actualPrompt: storedResult.prompt
+        });
+        
+        // 清除暫存，避免重複添加記錄
+        console.log('[RESULT] 清除暫存的生成結果，避免重複添加記錄');
+        clearStoredGenerationResult();
+        setIsLoading(false);
+      } else {
+        console.error('[RESULT] 生成結果解析失敗');
+        setError('生成結果解析失敗');
+        setIsLoading(false);
+      }
+    } else {
+      console.warn('[RESULT] 未找到暫存的生成結果');
+      // 如果沒有暫存結果，則顯示錯誤訊息
+      setError('未找到生成結果。請返回設置頁面生成自我介紹。');
+      setIsLoading(false);
+    }
+    
+    // 標記初始化已完成
+    isInitialized.current = true;
+  }, []);
+  
+  // 驗證專案標題
   useEffect(() => {
     setTitleError(projectTitle.trim() === '');
   }, [projectTitle]);
-
-  // Check if there's a record ID in the URL
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const recordId = searchParams.get('record');
-    if (recordId) {
-      setHistoryRecordId(recordId);
-      const record = getGenerationRecordById(recordId);
-      if (record) {
-        loadGenerationRecord(record);
+  
+  // 從歷史記錄載入
+  const loadFromHistoryRecord = (record: GenerationRecord) => {
+    // 設定生成結果
+    setGeneratedText(record.generatedText);
+    setActualPrompt(record.actualPrompt);
+    setFormData(record.formData);
+    setProjectId(record.projectId);
+    setEstimatedCost(record.estimatedCost);
+    
+    // 設定專案標題
+    if (record.projectId) {
+      const storedProjects = localStorage.getItem('projects');
+      if (storedProjects) {
+        try {
+          const projects = JSON.parse(storedProjects);
+          const project = projects.find((p: any) => p.id.toString() === String(record.projectId));
+          if (project && project.title) {
+            setProjectTitle(project.title);
+          } else {
+            setProjectTitle(record.projectTitle);
+          }
+        } catch (error) {
+          console.error('解析專案資料時發生錯誤:', error);
+          setProjectTitle(record.projectTitle);
+        }
+      } else {
+        setProjectTitle(record.projectTitle);
       }
+    } else {
+      setProjectTitle(record.projectTitle);
     }
-  }, [location, getGenerationRecordById]);
-
-  // Function to generate introduction using the selected LLM model provider
-  const generateIntroduction = async () => {
-    // Clear previous states
-    setIsLoading(true);
-    setError('');
     
-    // Check if we have a valid API key based on the selected model provider
+    setIsLoading(false);
+  };
+  
+  // 計算近似 token 數量
+  const getApproximateTokenCount = (text: string) => {
+    return Math.ceil(text.length / 4);
+  };
+  
+  // 計算成本估算
+  const calculateCost = (tokens: number, provider: string, model: string): number => {
+    if (provider === 'openai') {
+      if (model.includes('gpt-4')) {
+        return tokens * 0.00003; // GPT-4 估算價格
+      } else {
+        return tokens * 0.000002; // GPT-3.5 估算價格
+      }
+    } else if (provider === 'gemini') {
+      return tokens * 0.0000005; // Gemini 估算價格
+    }
+    return 0;
+  };
+  
+  // 重新生成
+  const handleRegenerate = async () => {
+    // 檢查 API Key 有效性
     const currentApiKey = modelProvider === 'openai' ? apiKey : geminiApiKey;
-    
     if (!currentApiKey) {
-      setError(`${modelProvider === 'openai' ? 'OpenAI' : 'Google Gemini'} API Key 未設定。請聯繫管理員。`);
-      setIsLoading(false);
+      setError(`${modelProvider === 'openai' ? 'OpenAI' : 'Google Gemini'} API Key 未設定。請設定 API Key 後再嘗試。`);
       return;
     }
     
+    // 設定狀態
+    setIsLoading(true);
+    setError('');
+    setIsRegenerating(true);
+    
     try {
-      // 取得URL中的專案ID
-      const searchParams = new URLSearchParams(location.search);
-      const idFromUrl = searchParams.get('id');
-      if (idFromUrl) {
-        setProjectId(idFromUrl);
-      }
-      
-      // Use the model service to generate content based on selected provider and model
+      // 生成自我介紹
       const result = await generateSelfIntroduction(
         formData,
         modelProvider,
@@ -129,24 +301,32 @@ const Result: React.FC = () => {
       if (result.error) {
         setError(result.error);
       } else if (result.content) {
+        // 更新 UI
         setGeneratedText(result.content);
-        
-        // 儲存提示詞和其他相關資訊
         if (result.prompt) {
           setActualPrompt(result.prompt);
         }
         
-        // 估算成本 (假設用字元數估算，實際可能需要更精確的計算)
+        // 計算成本
         const tokens = getApproximateTokenCount(result.content);
         const cost = calculateCost(tokens, modelProvider, modelId);
         setEstimatedCost(cost);
         
-        // 保存生成記錄
-        const searchParams = new URLSearchParams(location.search);
-        const idFromUrl = searchParams.get('id') || '';
+        // 暫存結果
+        storeGenerationResult({
+          text: result.content,
+          prompt: result.prompt || '',
+          projectTitle: projectTitle,
+          projectId: typeof projectId === 'string' ? projectId : String(projectId),
+          modelProvider,
+          modelId,
+          estimatedTokens: tokens,
+          estimatedCost: cost
+        });
         
+        // 添加生成記錄
         addGenerationRecord({
-          projectId: idFromUrl,
+          projectId: typeof projectId === 'string' ? projectId : String(projectId),
           projectTitle: projectTitle,
           formData: { ...formData },
           generatedText: result.content,
@@ -165,49 +345,26 @@ const Result: React.FC = () => {
       setError(error instanceof Error ? error.message : '未知錯誤');
     } finally {
       setIsLoading(false);
+      setIsRegenerating(false);
     }
   };
-
-  // Calculate cost based on tokens and model
-  const calculateCost = (tokens: number, provider: string, model: string): number => {
-    // 簡單估算成本，實際成本計算應該更精確
-    if (provider === 'openai') {
-      if (model.includes('gpt-4')) {
-        return tokens * 0.00003; // 假設GPT-4的成本
-      } else {
-        return tokens * 0.000002; // 假設GPT-3.5的成本
-      }
-    } else if (provider === 'gemini') {
-      return tokens * 0.0000005; // 假設Gemini的成本
-    }
-    return 0;
-  };
-
-  // Generate introduction when component mounts or when API key is loaded
-  // or when model provider or selected model changes
-  useEffect(() => {
-    if (!isApiKeyLoading && (modelProvider === 'openai' ? apiKey : geminiApiKey)) {
-      generateIntroduction();
-    } else if (!isApiKeyLoading && apiKeyError) {
-      setError(apiKeyError);
-      setIsLoading(false);
-    }
-  }, [isApiKeyLoading, apiKey, geminiApiKey, apiKeyError, modelProvider, modelId]);
-
+  
+  // 處理專案標題變更
   const handleProjectTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setProjectTitle(newTitle);
     setTitleError(newTitle.trim() === '');
     setHasChanges(true);
   };
-
+  
+  // 處理專案儲存
   const handleSave = () => {
     if (projectTitle.trim() === '') {
       setTitleError(true);
       return;
     }
     
-    // Get existing projects from localStorage
+    // 取得現有專案
     const storedProjects = localStorage.getItem('projects');
     let projects = [];
     
@@ -215,30 +372,30 @@ const Result: React.FC = () => {
       projects = JSON.parse(storedProjects);
     }
     
-    // Check if we're editing an existing project
+    // 檢查是否編輯現有專案
     const searchParams = new URLSearchParams(location.search);
-    const projectId = searchParams.get('id');
+    const currentProjectId = searchParams.get('id');
     let existingProject = null;
     
-    if (projectId) {
-      existingProject = projects.find((project: { id: number }) => project.id.toString() === projectId);
+    if (currentProjectId) {
+      existingProject = projects.find((project: { id: number }) => project.id.toString() === currentProjectId);
     }
     
     if (existingProject) {
-      // Update existing project
+      // 更新現有專案
       const updatedProjects = projects.map((project: any) => {
-        if (project.id.toString() === projectId) {
+        if (project.id.toString() === currentProjectId) {
           return {
             ...project,
             title: projectTitle,
             lastEdited: new Date().toLocaleDateString(),
-            status: 'completed',  // Mark as completed when saving from results
+            status: 'completed',
             formData: project.formData || {
               personalInfo: formData.personalInfo,
               industrySettings: formData.industrySettings,
               generationSettings: formData.generationSettings
             },
-            generatedText: generatedText, // Save the generated text as well
+            generatedText: generatedText,
             modelProvider,
             modelId
           };
@@ -246,16 +403,13 @@ const Result: React.FC = () => {
         return project;
       });
       
-      // Save back to localStorage
       localStorage.setItem('projects', JSON.stringify(updatedProjects));
-      
-      // Show modal
       setIsSaveModalOpen(true);
       setHasChanges(false);
     } else {
-      // Create a new project
+      // 建立新專案
       const projectData = {
-        id: Date.now(), // Generate a unique ID based on timestamp
+        id: Date.now(),
         title: projectTitle,
         status: 'completed',
         lastEdited: new Date().toLocaleDateString(),
@@ -265,29 +419,26 @@ const Result: React.FC = () => {
           industrySettings: formData.industrySettings,
           generationSettings: formData.generationSettings
         },
-        generatedText: generatedText, // Save the generated text as well
+        generatedText: generatedText,
         modelProvider,
         modelId
       };
       
-      // Add the new project to the array
       projects.push(projectData);
-      
-      // Save back to localStorage
       localStorage.setItem('projects', JSON.stringify(projects));
-      
-      // Show modal
       setIsSaveModalOpen(true);
       setHasChanges(false);
     }
   };
-
+  
+  // 複製到剪貼簿
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(generatedText);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
   };
-
+  
+  // 下載文字檔
   const handleDownload = () => {
     const blob = new Blob([generatedText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -299,81 +450,37 @@ const Result: React.FC = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
-  const handleRegenerate = () => {
-    generateIntroduction();
-  };
-
+  
+  // 導航到編輯頁面
   const handleEdit = () => {
     const searchParams = new URLSearchParams(location.search);
     const projectId = searchParams.get('id');
     navigate(projectId ? `/profile?id=${projectId}` : '/profile');
   };
-
+  
+  // 提交使用者回饋
   const handleFeedback = (isPositive: boolean) => {
-    // In a real app, you might want to send this feedback to your backend
     console.log(`User feedback: ${isPositive ? 'Positive' : 'Negative'}`);
     setFeedbackGiven(true);
     setTimeout(() => setFeedbackGiven(false), 3000);
   };
-
-  // Calculate approximate token count from generated text
-  const getApproximateTokenCount = (text: string) => {
-    // A very rough estimation: 1 token ≈ 4 characters in English, might vary for other languages
-    return Math.ceil(text.length / 4);
-  };
-
+  
   // 計算返回按鈕的目標路徑
   const backToFormUrl = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
     const projectId = searchParams.get('id');
     return projectId ? `/profile?id=${projectId}` : '/profile';
   }, [location.search]);
-
-  // Load generation record data
-  const loadGenerationRecord = (record: GenerationRecord) => {
-    setGeneratedText(record.generatedText);
-    setActualPrompt(record.actualPrompt);
-    setFormData(record.formData);
-    setProjectId(record.projectId);
-    setEstimatedCost(record.estimatedCost);
-    
-    // Try to get the actual project title from localStorage if available
-    if (record.projectId) {
-      const storedProjects = localStorage.getItem('projects');
-      if (storedProjects) {
-        try {
-          const projects = JSON.parse(storedProjects);
-          const project = projects.find((p: any) => p.id.toString() === String(record.projectId));
-          if (project && project.title) {
-            setProjectTitle(project.title);
-          } else {
-            // Fall back to the record's project title if no match found
-            setProjectTitle(record.projectTitle);
-          }
-        } catch (error) {
-          console.error('Error parsing stored projects:', error);
-          setProjectTitle(record.projectTitle);
-        }
-      } else {
-        setProjectTitle(record.projectTitle);
-      }
-    } else {
-      setProjectTitle(record.projectTitle);
-    }
-    
-    setIsLoading(false);
-  };
-
-  // Handle selecting a record from history
+  
+  // 從歷史記錄選擇
   const handleSelectHistoryRecord = (record: GenerationRecord) => {
-    loadGenerationRecord(record);
+    loadFromHistoryRecord(record);
     setShowHistoryModal(false);
-    // Update URL to include record ID
+    // 更新 URL 以包含記錄 ID
     navigate(`/result?record=${record.id}`);
   };
-
-  // Render info section including prompt and cost
+  
+  // 渲染詳細資訊區塊
   const renderDetailedInfo = () => {
     return (
       <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 mb-4 space-y-3">
@@ -400,8 +507,8 @@ const Result: React.FC = () => {
       </div>
     );
   };
-
-  // Add this in the JSX where the action buttons are (like save, copy, etc.)
+  
+  // 渲染操作按鈕
   const renderActionButtons = () => (
     <div className="flex flex-wrap gap-3 mt-6">
       <button
@@ -422,10 +529,11 @@ const Result: React.FC = () => {
       
       <button
         onClick={handleRegenerate}
-        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        disabled={isLoading || isRegenerating}
+        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
       >
-        <FontAwesomeIcon icon={faRedo} className="mr-2" />
-        重新生成
+        <FontAwesomeIcon icon={isRegenerating ? faSpinner : faRedo} className={`mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+        {isRegenerating ? '生成中...' : '重新生成'}
       </button>
       
       <button
@@ -435,21 +543,14 @@ const Result: React.FC = () => {
         <FontAwesomeIcon icon={faEdit} className="mr-2" />
         編輯設定
       </button>
-      
-      {/* <button
-        onClick={() => setShowHistoryModal(true)}
-        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-      >
-        <FontAwesomeIcon icon={faHistory} className="mr-2" />
-        生成歷史
-      </button> */}
     </div>
   );
-
+  
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="flex-grow p-4 sm:p-6">
         <div className="max-w-4xl mx-auto">
+          {/* 頂部導航欄 */}
           <div className="flex justify-between items-center mb-6">
             <Link 
               to={backToFormUrl}
@@ -461,11 +562,11 @@ const Result: React.FC = () => {
             <div className="flex items-center">
               <button
                 onClick={handleRegenerate}
-                disabled={isLoading}
+                disabled={isLoading || isRegenerating}
                 className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 mr-2 flex items-center disabled:opacity-50"
               >
-                <FontAwesomeIcon icon={faRedo} className="mr-2" />
-                重新生成
+                <FontAwesomeIcon icon={isRegenerating ? faSpinner : faRedo} className={`mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+                {isRegenerating ? '生成中...' : '重新生成'}
               </button>
               <button 
                 onClick={handleEdit}
@@ -477,7 +578,7 @@ const Result: React.FC = () => {
             </div>
           </div>
           
-          {/* Project title input */}
+          {/* 專案標題輸入 */}
           <div className="mb-6 w-full sm:w-2/3 lg:w-1/2">
             <div className={`relative rounded-lg border ${titleError ? 'border-red-500' : 'border-gray-300'} shadow-sm`}>
               <input
@@ -497,10 +598,10 @@ const Result: React.FC = () => {
             {titleError && <p className="mt-1 text-sm text-red-500">請輸入專案名稱</p>}
           </div>
           
-          {/* Display detailed info panel */}
+          {/* 顯示詳細資訊面板 */}
           {generatedText && !error && renderDetailedInfo()}
           
-          {/* Result display */}
+          {/* 結果顯示 */}
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">生成的自我介紹</h2>
             
@@ -520,7 +621,7 @@ const Result: React.FC = () => {
                   {generatedText}
                 </pre>
                 
-                {/* Action Buttons */}
+                {/* 操作按鈕 */}
                 {renderActionButtons()}
               </div>
             ) : (
@@ -528,7 +629,7 @@ const Result: React.FC = () => {
             )}
           </div>
         
-          {/* Feedback section */}
+          {/* 回饋部分 */}
           {generatedText && !error && (
             <div className="bg-white rounded-lg shadow-md p-6">
               <h3 className="text-lg font-medium text-gray-800 mb-3">這個自我介紹對您有幫助嗎？</h3>
@@ -565,7 +666,7 @@ const Result: React.FC = () => {
         </div>
       </div>
       
-      {/* History Modal */}
+      {/* 歷史記錄彈窗 */}
       <Modal 
         isOpen={showHistoryModal} 
         onClose={() => setShowHistoryModal(false)}
@@ -574,7 +675,7 @@ const Result: React.FC = () => {
         <GenerationHistory onSelectRecord={handleSelectHistoryRecord} />
       </Modal>
       
-      {/* Save Modal */}
+      {/* 儲存彈窗 */}
       <Modal 
         isOpen={isSaveModalOpen} 
         onClose={() => setIsSaveModalOpen(false)}

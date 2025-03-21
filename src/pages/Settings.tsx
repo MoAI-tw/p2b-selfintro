@@ -3,19 +3,39 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import ProgressBar from '../components/ProgressBar';
 import { useFormContext } from '../context/FormContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faPaperPlane, faChartPie, faLanguage, faComment, faFileAlt, faCheck, faSave, faTimes, faExclamationCircle, faArrowLeft, faArrowRight, faKey, faSliders, faGlobe, faMicrophone } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faPaperPlane, faChartPie, faLanguage, faComment, faFileAlt, faCheck, faSave, faTimes, faExclamationCircle, faArrowLeft, faArrowRight, faKey, faSliders, faGlobe, faMicrophone, faMagic, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../components/Modal';
 import ApiKeySettings from '../components/ApiKeySettings';
 import DraggableModal from '../components/DraggableModal';
+import { useApiKey } from '../context/ApiKeyContext';
+import { generateSelfIntroduction } from '../utils/modelService';
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { formData, updateGenerationSettings, updateIndustrySettings } = useFormContext();
+  const { 
+    formData, 
+    updateGenerationSettings, 
+    updateIndustrySettings,
+    storeGenerationResult
+  } = useFormContext();
+  
+  const { 
+    apiKey, 
+    geminiApiKey, 
+    modelProvider, 
+    isLoading: isApiKeyLoading, 
+    error: apiKeyError,
+    modelId,
+    selectedModel
+  } = useApiKey();
+  
   const [projectTitle, setProjectTitle] = useState('我的自介專案');
   const [hasChanges, setHasChanges] = useState(false);
   const [titleError, setTitleError] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   
   const [localSettings, setLocalSettings] = useState({
     tone: formData.generationSettings.tone,
@@ -187,19 +207,45 @@ const Settings: React.FC = () => {
     setHasChanges(false);
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  // 計算估算的 Token 數量
+  const getApproximateTokenCount = (text: string) => {
+    // 簡單估算：平均每 4 個字符等於 1 個 token
+    return Math.ceil(text.length / 4);
+  };
+
+  // 估算成本
+  const calculateCost = (tokens: number, provider: string, model: string): number => {
+    // 簡單估算成本，實際成本計算應該更精確
+    if (provider === 'openai') {
+      if (model.includes('gpt-4')) {
+        return tokens * 0.00003; // 假設GPT-4的成本
+      } else {
+        return tokens * 0.000002; // 假設GPT-3.5的成本
+      }
+    } else if (provider === 'gemini') {
+      return tokens * 0.0000005; // 假設Gemini的成本
+    }
+    return 0;
+  };
+
+  // 生成自我介紹
+  const generateIntroduction = async () => {
+    // Logging：開始執行 generateIntroduction
+    console.log('[GENERATE] 開始生成自我介紹流程');
+
     if (projectTitle.trim() === '') {
+      console.log('[GENERATE] 錯誤：專案標題為空');
       setTitleError(true);
       return;
     }
     
     if (selectedFocusAreas.length === 0) {
-      return; // Prevent submission if no focus areas are selected
+      console.log('[GENERATE] 錯誤：未選擇重點領域');
+      return; // 防止在沒有選擇重點領域時提交
     }
     
-    // Update context with local state
+    // 首先更新 context 中的設置
+    console.log('[GENERATE] 更新生成設置', localSettings);
     updateGenerationSettings({
       tone: localSettings.tone,
       outputLength: localSettings.outputLength,
@@ -209,11 +255,91 @@ const Settings: React.FC = () => {
       focusOnRecentExperience: localSettings.focusOnRecentExperience
     });
     
+    console.log('[GENERATE] 更新行業設置', { focusAreas: selectedFocusAreas });
     updateIndustrySettings({
       focusAreas: selectedFocusAreas
     });
     
-    navigate(`/result?project_name=${encodeURIComponent(projectTitle)}`);
+    // 檢查 API key
+    const currentApiKey = modelProvider === 'openai' ? apiKey : geminiApiKey;
+    if (!currentApiKey) {
+      console.log('[GENERATE] 錯誤：API Key 未設定', { modelProvider });
+      setGenerationError(`${modelProvider === 'openai' ? 'OpenAI' : 'Google Gemini'} API Key 未設定。請聯繫管理員。`);
+      setShowApiKeyModal(true);
+      return;
+    }
+    
+    // 設置生成中狀態
+    setIsGenerating(true);
+    setGenerationError(null);
+    
+    try {
+      // 取得URL中的專案ID
+      const searchParams = new URLSearchParams(location.search);
+      const idFromUrl = searchParams.get('id');
+      console.log('[GENERATE] 專案資訊', { title: projectTitle, id: idFromUrl });
+      
+      console.log('[GENERATE] 呼叫 API 生成自我介紹', { 
+        modelProvider,
+        modelId,
+        hasFormData: !!formData
+      });
+      
+      // 生成自我介紹
+      const result = await generateSelfIntroduction(
+        formData,
+        modelProvider,
+        currentApiKey,
+        modelId
+      );
+      
+      console.log('[GENERATE] API 回傳結果', {
+        success: !result.error, 
+        hasContent: !!result.content,
+        errorMessage: result.error
+      });
+      
+      if (result.error) {
+        console.log('[GENERATE] 生成錯誤', result.error);
+        setGenerationError(result.error);
+      } else if (result.content) {
+        // 估算 token 和成本
+        const tokens = getApproximateTokenCount(result.content);
+        const cost = calculateCost(tokens, modelProvider, modelId);
+        console.log('[GENERATE] 計算 token 和成本', { tokens, cost });
+        
+        // 存儲生成結果
+        console.log('[GENERATE] 儲存生成結果到 sessionStorage');
+        storeGenerationResult({
+          text: result.content,
+          prompt: result.prompt || '',
+          projectTitle: projectTitle,
+          projectId: idFromUrl || undefined,
+          modelProvider,
+          modelId,
+          estimatedTokens: tokens,
+          estimatedCost: cost,
+        });
+        
+        // 導航到結果頁面
+        const resultUrl = `/result?project_name=${encodeURIComponent(projectTitle)}${idFromUrl ? `&id=${idFromUrl}` : ''}`;
+        console.log('[GENERATE] 導航到結果頁面', { url: resultUrl });
+        navigate(resultUrl);
+      } else {
+        console.log('[GENERATE] 未知錯誤：沒有內容也沒有錯誤');
+        setGenerationError('生成自我介紹時發生未知錯誤');
+      }
+    } catch (error) {
+      console.error('[GENERATE] 生成自我介紹時發生例外錯誤:', error);
+      setGenerationError(error instanceof Error ? error.message : '未知錯誤');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    generateIntroduction();
   };
 
   // 定義語氣選項的中英文映射
@@ -273,6 +399,13 @@ const Settings: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <Link 
+                to="/prompt-editor"
+                className="px-4 py-1.5 rounded-full flex items-center text-sm transition-all duration-200 bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:shadow-md"
+              >
+                <FontAwesomeIcon icon={faMagic} className="mr-2" />
+                提示詞編輯器
+              </Link>
               <button 
                 onClick={() => setShowApiKeyModal(true)}
                 className="px-4 py-1.5 rounded-full flex items-center text-sm transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -306,6 +439,24 @@ const Settings: React.FC = () => {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="bg-white rounded-lg shadow-md p-6 my-8">
           <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">生成設置</h1>
+          
+          {generationError && (
+            <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg mb-6">
+              <div className="flex items-center">
+                <FontAwesomeIcon icon={faExclamationCircle} className="mr-2" />
+                <span className="font-medium">生成錯誤</span>
+              </div>
+              <p className="mt-1">{generationError}</p>
+              <div className="mt-2">
+                <button 
+                  onClick={() => setShowApiKeyModal(true)}
+                  className="text-red-600 underline"
+                >
+                  設定 API Key
+                </button>
+              </div>
+            </div>
+          )}
           
           <form onSubmit={handleSubmit}>
             {/* 介紹類型設定 */}
@@ -483,6 +634,33 @@ const Settings: React.FC = () => {
               </div>
             </div>
             
+            <div className="mb-8 border-t pt-8">
+              <h2 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+                <FontAwesomeIcon icon={faMagic} className="text-indigo-600 mr-2" />提示詞設定
+              </h2>
+              
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="font-medium text-gray-800">自定義提示詞模板</div>
+                  <div className="text-sm text-gray-500">
+                    {formData.generationSettings.useCustomPrompt ? '已啟用' : '未啟用'}
+                  </div>
+                </div>
+                
+                <p className="text-gray-600 text-sm mb-4">
+                  使用自定義提示詞模板可以更精確地控制自我介紹的生成結果。您可以通過提示詞編輯器來創建和管理模板。
+                </p>
+                
+                <Link 
+                  to="/prompt-editor" 
+                  className="inline-block bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-md hover:shadow-md transition-all"
+                >
+                  <FontAwesomeIcon icon={faMagic} className="mr-2" />
+                  前往提示詞編輯器
+                </Link>
+              </div>
+            </div>
+            
             <div className="flex justify-between mt-10">
               <Link 
                 to={`/industry?project_name=${encodeURIComponent(projectTitle)}`} 
@@ -494,15 +672,24 @@ const Settings: React.FC = () => {
               
               <button 
                 type="submit"
-                disabled={selectedFocusAreas.length === 0}
+                disabled={selectedFocusAreas.length === 0 || isGenerating}
                 className={`flex items-center px-6 py-3 rounded-md text-white transition-colors ${
-                  selectedFocusAreas.length > 0 
+                  selectedFocusAreas.length > 0 && !isGenerating
                     ? 'bg-blue-600 hover:bg-blue-700' 
                     : 'bg-gray-400 cursor-not-allowed'
                 }`}
               >
-                生成內容
-                <FontAwesomeIcon icon={faPaperPlane} className="ml-2" />
+                {isGenerating ? (
+                  <>
+                    <FontAwesomeIcon icon={faSpinner} className="mr-2 animate-spin" />
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    生成內容
+                    <FontAwesomeIcon icon={faPaperPlane} className="ml-2" />
+                  </>
+                )}
               </button>
             </div>
           </form>
