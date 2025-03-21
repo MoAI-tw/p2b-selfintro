@@ -31,6 +31,18 @@ function ScrollToTop() {
   return null;
 }
 
+// FooterWrapper 組件，有條件地顯示 Footer
+function FooterWrapper() {
+  const location = useLocation();
+  const hideFooterPaths = ['/profile', '/industry', '/settings'];
+  
+  if (hideFooterPaths.some(path => location.pathname.startsWith(path))) {
+    return null;
+  }
+  
+  return <Footer />;
+}
+
 function App() {
   return (
     <Router>
@@ -60,7 +72,7 @@ function App() {
                   </Routes>
                 </Suspense>
               </main>
-              <Footer />
+              <FooterWrapper />
             </div>
           </ToastProvider>
         </ApiKeyProvider>

@@ -278,25 +278,6 @@ const Industry = () => {
   // Add API Key Modal state
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   
-  // Set default values for demo
-  useEffect(() => {
-    if (!formData.industrySettings.industry) {
-      updateIndustrySettings({
-        industry: '資訊科技業',
-        jobCategory: 'it',
-        jobSubcategory: 'web_dev',
-        specificPosition: '資深前端工程師',
-        keywords: []
-      });
-      
-      // Add default keywords
-      const defaultKeywords = ['React', 'Vue.js', 'TypeScript', 'UI/UX設計', '前端效能優化'];
-      defaultKeywords.forEach(keyword => {
-        addKeyword(keyword);
-      });
-    }
-  }, []);
-  
   // Define industries data
   const industries: {[key: string]: string} = {
     'tech': '科技業',

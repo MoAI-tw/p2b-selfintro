@@ -24,10 +24,10 @@ const Settings: React.FC = () => {
     apiKey, 
     geminiApiKey, 
     modelProvider, 
-    isLoading: isApiKeyLoading, 
+    loading: isApiKeyLoading, 
     error: apiKeyError,
-    modelId,
-    selectedModel
+    selectedModel,
+    maxTokens
   } = useApiKey();
   
   const [projectTitle, setProjectTitle] = useState('我的自介專案');
@@ -281,42 +281,45 @@ const Settings: React.FC = () => {
       
       console.log('[GENERATE] 呼叫 API 生成自我介紹', { 
         modelProvider,
-        modelId,
+        selectedModel,
         hasFormData: !!formData
       });
       
       // 生成自我介紹
       const result = await generateSelfIntroduction(
-        formData,
-        modelProvider,
-        currentApiKey,
-        modelId
+        {
+          formData,
+          apiKey: currentApiKey,
+          selectedModel: selectedModel.id,
+          maxTokens
+        },
+        modelProvider
       );
       
       console.log('[GENERATE] API 回傳結果', {
-        success: !result.error, 
-        hasContent: !!result.content,
+        success: result.success, 
+        hasContent: !!result.data,
         errorMessage: result.error
       });
       
       if (result.error) {
         console.log('[GENERATE] 生成錯誤', result.error);
         setGenerationError(result.error);
-      } else if (result.content) {
+      } else if (result.data) {
         // 估算 token 和成本
-        const tokens = getApproximateTokenCount(result.content);
-        const cost = calculateCost(tokens, modelProvider, modelId);
+        const tokens = getApproximateTokenCount(result.data);
+        const cost = calculateCost(tokens, modelProvider, selectedModel.id);
         console.log('[GENERATE] 計算 token 和成本', { tokens, cost });
         
         // 存儲生成結果
         console.log('[GENERATE] 儲存生成結果到 sessionStorage');
         storeGenerationResult({
-          text: result.content,
-          prompt: result.prompt || '',
+          text: result.data,
+          prompt: '',
           projectTitle: projectTitle,
           projectId: idFromUrl || undefined,
           modelProvider,
-          modelId,
+          modelId: selectedModel.id,
           estimatedTokens: tokens,
           estimatedCost: cost,
         });
@@ -399,20 +402,6 @@ const Settings: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Link 
-                to="/prompt-editor"
-                className="px-4 py-1.5 rounded-full flex items-center text-sm transition-all duration-200 bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:shadow-md"
-              >
-                <FontAwesomeIcon icon={faMagic} className="mr-2" />
-                提示詞編輯器
-              </Link>
-              <button 
-                onClick={() => setShowApiKeyModal(true)}
-                className="px-4 py-1.5 rounded-full flex items-center text-sm transition-all duration-200 bg-gray-100 text-gray-700 hover:bg-gray-200"
-              >
-                <FontAwesomeIcon icon={faKey} className="mr-2" />
-                API 設定
-              </button>
               <button 
                 id="save_btn" 
                 disabled={!hasChanges || titleError}
