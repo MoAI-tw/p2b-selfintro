@@ -22,20 +22,34 @@ const PromptEditor: React.FC = () => {
   useEffect(() => {
     const savedTemplates = localStorage.getItem('promptTemplates');
     if (savedTemplates) {
-      setTemplates(JSON.parse(savedTemplates));
+      try {
+        setTemplates(JSON.parse(savedTemplates));
+      } catch (error) {
+        console.error('Error parsing prompt templates:', error);
+        initializeDefaultTemplate();
+      }
     } else {
-      // Create default template if none exist
-      const defaultTemplate: PromptTemplate = {
-        id: '1',
-        name: '基本模板',
-        description: '基本的自我介紹生成模板',
-        template: '請根據以下信息生成一份專業的自我介紹，時間約為{duration}秒，語言為{language}，風格為{style}，重點突出{keywords}。自我介紹應包含個人背景、教育經歷、專業技能和工作經驗，特別強調與{industry}行業和{job_position}職位相關的能力和經驗。',
-        isDefault: true
-      };
-      setTemplates([defaultTemplate]);
-      localStorage.setItem('promptTemplates', JSON.stringify([defaultTemplate]));
+      initializeDefaultTemplate();
     }
   }, []);
+
+  // Initialize default template if none exist
+  const initializeDefaultTemplate = () => {
+    const defaultTemplate: PromptTemplate = {
+      id: '1',
+      name: '基本模板',
+      description: '基本的自我介紹生成模板',
+      template: '請根據以下信息生成一份專業的自我介紹，時間約為{duration}秒，語言為{language}，風格為{style}，重點突出{keywords}。自我介紹應包含個人背景、教育經歷、專業技能和工作經驗，特別強調與{industry}行業和{job_position}職位相關的能力和經驗。',
+      isDefault: true
+    };
+    setTemplates([defaultTemplate]);
+    // Use try-catch to ensure data is saved even if there's an error
+    try {
+      localStorage.setItem('promptTemplates', JSON.stringify([defaultTemplate]));
+    } catch (error) {
+      console.error('Error saving prompt templates to localStorage:', error);
+    }
+  };
 
   // If no current template is selected, select the first one
   useEffect(() => {
@@ -46,7 +60,14 @@ const PromptEditor: React.FC = () => {
 
   const saveTemplates = (updatedTemplates: PromptTemplate[]) => {
     setTemplates(updatedTemplates);
-    localStorage.setItem('promptTemplates', JSON.stringify(updatedTemplates));
+    // Use try-catch to ensure data is saved even if there's an error
+    try {
+      localStorage.setItem('promptTemplates', JSON.stringify(updatedTemplates));
+    } catch (error) {
+      console.error('Error saving prompt templates to localStorage:', error);
+      // Alert the user about the error
+      alert('儲存模板時發生錯誤，請稍後再試。');
+    }
   };
 
   const handleSelectTemplate = (template: PromptTemplate) => {

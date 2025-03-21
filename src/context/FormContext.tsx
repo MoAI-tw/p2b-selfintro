@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 
 // Define types for our form data
 export interface Education {
@@ -358,23 +359,25 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
 
   // 新增生成記錄方法
   const addGenerationRecord = (record: Omit<GenerationRecord, 'id' | 'timestamp'>) => {
-    const id = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const timestamp = Date.now();
-    
+    // 建立新記錄
     const newRecord: GenerationRecord = {
       ...record,
-      id,
-      timestamp
+      id: uuidv4(), // 產生唯一ID
+      timestamp: Date.now()
     };
     
-    setGenerationRecords(prev => {
-      const updatedRecords = [...prev, newRecord];
-      // 儲存到 localStorage
-      localStorage.setItem('generationRecords', JSON.stringify(updatedRecords));
-      return updatedRecords;
-    });
+    // 更新記錄列表
+    const updatedRecords = [...generationRecords, newRecord];
+    setGenerationRecords(updatedRecords);
     
-    return id;
+    // 儲存到 localStorage (永久保存)
+    try {
+      localStorage.setItem('generationRecords', JSON.stringify(updatedRecords));
+    } catch (error) {
+      console.error('Error saving generation records to localStorage:', error);
+    }
+    
+    return newRecord.id;
   };
   
   // 獲取所有生成記錄
@@ -389,12 +392,15 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
   
   // 刪除特定生成記錄
   const deleteGenerationRecord = (id: string) => {
-    setGenerationRecords(prev => {
-      const updatedRecords = prev.filter(record => record.id !== id);
-      // 儲存到 localStorage
+    const updatedRecords = generationRecords.filter(record => record.id !== id);
+    setGenerationRecords(updatedRecords);
+    
+    // 更新 localStorage
+    try {
       localStorage.setItem('generationRecords', JSON.stringify(updatedRecords));
-      return updatedRecords;
-    });
+    } catch (error) {
+      console.error('Error updating generation records in localStorage after deletion:', error);
+    }
   };
 
   // 儲存生成結果到暫存
