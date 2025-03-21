@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { useApiKey } from './ApiKeyContext';
+import * as modelService from '../utils/modelService';
 
 // Define types for our form data
 export interface Education {
@@ -476,6 +478,61 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
     const result = storedGenerationResult !== null;
     console.log('[FORM_CONTEXT] 檢查是否有暫存的生成結果', { exists: result });
     return result;
+  };
+
+  const generateSelfIntroduction = async () => {
+    try {
+      setIsGenerating(true);
+      setGenerationError(null);
+      
+      // Get API key and model info from the API Key context
+      const { apiKey, geminiApiKey, modelProvider, selectedModel, maxTokens } = apiKeyContext;
+      
+      // Select the appropriate API key based on the model provider
+      const selectedApiKey = modelProvider === 'openai' ? apiKey : geminiApiKey;
+      
+      // Check if we have valid form data
+      if (!formData.personalInfo) {
+        throw new Error('缺少個人資料。請填寫必要的資訊。');
+      }
+      
+      // Call the model service
+      const result = await modelService.generateSelfIntroduction(
+        {
+          formData,
+          apiKey: selectedApiKey,
+          selectedModel: selectedModel.id,
+          maxTokens
+        },
+        modelProvider
+      );
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || '生成自我介紹時發生錯誤。');
+      }
+      
+      // Update the state with the generated result
+      setGeneratedIntroduction(result.data);
+      
+      // Save to generation history 
+      addGenerationRecord({
+        formData,
+        generatedIntroduction: result.data,
+        timestamp: new Date().toISOString(),
+        modelInfo: {
+          provider: modelProvider,
+          model: selectedModel.name
+        }
+      });
+      
+      return result.data;
+    } catch (error) {
+      console.error('生成失敗:', error);
+      setGenerationError(error instanceof Error ? error.message : '未知錯誤');
+      return null;
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (

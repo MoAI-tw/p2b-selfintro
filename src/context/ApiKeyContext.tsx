@@ -1,18 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { OPENAI_MODELS, GEMINI_MODELS, getModelById, getDefaultModel } from '../utils/modelConfig';
+import { OPENAI_MODELS, GEMINI_MODELS, getModelById, getDefaultModel, Model } from '../utils/modelConfig';
 
 // Define model provider types
 export type ModelProvider = 'openai' | 'gemini';
 
-// Define model interface
-interface ModelInfo {
-  id: string;
-  name: string;
-  description: string;
-  costPer1kTokens?: number;
-  currency?: string;
-  defaultTokens?: number;
-}
+// Define model interface for context - using the Model type from modelConfig
+export type ModelInfo = Model;
 
 export interface ApiKeyContextType {
   apiKey: string | null;
@@ -54,59 +47,11 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
   const [modelProvider, setModelProvider] = useState<ModelProvider>('openai');
   const [selectedModelId, setSelectedModelId] = useState('gpt-3.5-turbo');
   
-  // OpenAI models
-  const openAIModels: ModelInfo[] = [
-    {
-      id: 'gpt-3.5-turbo',
-      name: 'GPT-3.5 Turbo',
-      description: '最佳性價比的模型，適合大多數任務',
-      costPer1kTokens: 0.001,
-      currency: 'USD',
-      defaultTokens: 1500
-    },
-    {
-      id: 'gpt-4',
-      name: 'GPT-4',
-      description: '更強大的功能和準確度，但成本更高',
-      costPer1kTokens: 0.03,
-      currency: 'USD',
-      defaultTokens: 1000
-    },
-    {
-      id: 'gpt-4-turbo',
-      name: 'GPT-4 Turbo',
-      description: 'GPT-4 的更快版本，支援最新知識',
-      costPer1kTokens: 0.01,
-      currency: 'USD',
-      defaultTokens: 1500
-    }
-  ];
-  
-  // Gemini models
-  const geminiModels: ModelInfo[] = [
-    {
-      id: 'gemini-pro',
-      name: 'Gemini Pro',
-      description: 'Google 通用模型，適合多數任務',
-      costPer1kTokens: 0.0005,
-      currency: 'USD',
-      defaultTokens: 2000
-    },
-    {
-      id: 'gemini-1.5-pro',
-      name: 'Gemini 1.5 Pro',
-      description: '增強的能力和效能',
-      costPer1kTokens: 0.0025,
-      currency: 'USD',
-      defaultTokens: 2000
-    }
-  ];
-  
-  // Get available models based on current provider
-  const availableModels = modelProvider === 'openai' ? openAIModels : geminiModels;
+  // Get available models based on current provider from modelConfig.ts
+  const availableModels = modelProvider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS;
   
   // Find the current model info
-  const selectedModel = availableModels.find(model => model.id === selectedModelId) || availableModels[0];
+  const selectedModel = availableModels.find(model => model.id === selectedModelId) || getDefaultModel(modelProvider);
   
   // Methods to update model provider and selected model
   const handleModelProviderChange = (provider: ModelProvider) => {
@@ -115,7 +60,7 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
     if (provider === 'openai') {
       setSelectedModelId('gpt-3.5-turbo');
     } else {
-      setSelectedModelId('gemini-pro');
+      setSelectedModelId('gemini-1.5-pro');
     }
   };
   
@@ -144,42 +89,47 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
       try {
         setLoading(true);
         
-        // First try to load from localStorage if user has set custom API keys
-        const apiKeySource = localStorage.getItem('apiKeySource');
+        // First try to load from localStorage if available
+        const openaiKey = localStorage.getItem('openai_api_key');
+        const geminiKey = localStorage.getItem('gemini_api_key');
+        const maxTokensValue = localStorage.getItem('max_tokens');
         
-        if (apiKeySource === 'custom') {
-          const openaiKey = localStorage.getItem('openai_api_key');
-          const geminiKey = localStorage.getItem('gemini_api_key');
-          const maxTokensValue = localStorage.getItem('max_tokens');
-          
-          if (openaiKey) setApiKeyState(openaiKey);
-          if (geminiKey) setGeminiApiKeyState(geminiKey);
-          if (maxTokensValue) setMaxTokensState(parseInt(maxTokensValue, 10));
+        // If localStorage has values, use them
+        if (openaiKey) {
+          setApiKeyState(openaiKey);
         } else {
-          // Otherwise, load from environment variables
-          const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
-          const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+          // Otherwise use environment variables
+          const envOpenAIKey = import.meta.env.VITE_OPENAI_API_KEY;
+          if (envOpenAIKey) {
+            setApiKeyState(envOpenAIKey);
+          } else {
+            console.warn('OpenAI API key not found in localStorage or environment variables');
+          }
+        }
+        
+        if (geminiKey) {
+          setGeminiApiKeyState(geminiKey);
+        } else {
+          // Otherwise use environment variables
+          const envGeminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+          if (envGeminiKey) {
+            setGeminiApiKeyState(envGeminiKey);
+          } else {
+            console.warn('Gemini API key not found in localStorage or environment variables');
+          }
+        }
+        
+        if (maxTokensValue) {
+          setMaxTokensState(parseInt(maxTokensValue, 10));
+        } else {
           const maxTokensEnv = import.meta.env.VITE_MAX_TOKENS;
-          
-          if (openaiKey) {
-            setApiKeyState(openaiKey);
-          } else {
-            console.warn('OpenAI API key not found in environment variables');
-          }
-          
-          if (geminiKey) {
-            setGeminiApiKeyState(geminiKey);
-          } else {
-            console.warn('Gemini API key not found in environment variables');
-          }
-          
           if (maxTokensEnv) {
             setMaxTokensState(parseInt(maxTokensEnv, 10));
           }
         }
       } catch (err) {
         console.error('Error loading API keys:', err);
-        setError('載入 API 密鑰時發生錯誤。請確保您的環境變量已正確設置。');
+        setError('載入 API 密鑰時發生錯誤。請確保您的設定正確。');
       } finally {
         setLoading(false);
       }
