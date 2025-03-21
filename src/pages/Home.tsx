@@ -65,9 +65,9 @@ const Home = () => {
             </div>
             <div className="hidden md:flex items-center space-x-8">
               <Link to="/" className="text-indigo-600 font-medium">{t.home}</Link>
-              <Link to="#how-it-works" className="text-gray-600 hover:text-indigo-600 font-medium">{t.features}</Link>
-              <Link to="#" className="text-gray-600 hover:text-indigo-600 font-medium">{t.examples}</Link>
-              <Link to="#" className="text-gray-600 hover:text-indigo-600 font-medium">{t.faq}</Link>
+              <Link to="features" className="text-gray-600 hover:text-indigo-600 font-medium">{t.features}</Link>
+              <Link to="use-cases" className="text-gray-600 hover:text-indigo-600 font-medium">{t.examples}</Link>
+              <Link to="faq" className="text-gray-600 hover:text-indigo-600 font-medium">{t.faq}</Link>
             </div>
             <div className="flex items-center">
               <Link to="/projects" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">{t.getStarted}</Link>
