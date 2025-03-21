@@ -6,12 +6,17 @@ const Navbar = () => {
   const location = useLocation();
   const isHomePage = location.pathname === '/';
   const isProjectsPage = location.pathname === '/projects';
+  const isHistoryPage = location.pathname === '/history';
+  const isPromptEditorPage = location.pathname === '/prompt-editor';
   const isFeaturePage = location.pathname === '/features';
   const isUseCasePage = location.pathname === '/use-cases';
   const isFaqPage = location.pathname === '/faq';
   
   // 檢查是否為特殊頁面（功能介紹、使用案例、常見問題）
   const isSpecialPage = isFeaturePage || isUseCasePage || isFaqPage;
+  
+  // 檢查是否為應用頁面（我的專案、生成歷史、提示詞編輯）
+  const isAppPage = isProjectsPage || isHistoryPage || isPromptEditorPage;
   
   // 如果是首頁，不顯示導航欄，因為Home組件已經有自己的導航元素
   if (isHomePage) {
@@ -49,7 +54,7 @@ const Navbar = () => {
     );
   }
   
-  // 其他頁面使用標準導航欄
+  // 應用頁面和其他頁面使用標準導航欄
   return (
     <nav className="bg-white shadow-md">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -62,21 +67,21 @@ const Navbar = () => {
           </div>
           <div className="hidden md:flex items-center space-x-8">
             <Link to="/" className={location.pathname === '/' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>首頁</Link>
-            <Link to="/projects" className={location.pathname === '/projects' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>我的專案</Link>
-            <Link to="/history" className={location.pathname === '/history' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>
+            <Link to="/projects" className={isProjectsPage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>我的專案</Link>
+            <Link to="/history" className={isHistoryPage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>
               <FontAwesomeIcon icon={faHistory} className="mr-1" />
               生成歷史
             </Link>
-            <Link to="/prompt-editor" className={location.pathname === '/prompt-editor' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>
+            <Link to="/prompt-editor" className={isPromptEditorPage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>
               <FontAwesomeIcon icon={faMagic} className="mr-1" />
               提示詞編輯
             </Link>
-            {/* 在專案頁面不顯示這些連結，僅在首頁和其他頁面顯示 */}
-            {!isProjectsPage && (
+            {/* 僅在非應用頁面且非專案頁面顯示這些連結 */}
+            {!isAppPage && (
               <>
-                <Link to="/features" className={location.pathname === '/features' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>功能介紹</Link>
-                <Link to="/use-cases" className={location.pathname === '/use-cases' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>使用案例</Link>
-                <Link to="/faq" className={location.pathname === '/faq' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>常見問題</Link>
+                <Link to="/features" className={isFeaturePage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>功能介紹</Link>
+                <Link to="/use-cases" className={isUseCasePage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>使用案例</Link>
+                <Link to="/faq" className={isFaqPage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>常見問題</Link>
               </>
             )}
           </div>
