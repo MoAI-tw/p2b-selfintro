@@ -1,5 +1,5 @@
 import { FormData } from '../context/FormContext';
-import { generateSelfIntro } from './openai';
+import { generateSelfIntro as generateOpenAISelfIntro } from './openai';
 import { generateGeminiSelfIntro } from './gemini';
 import { ModelProvider } from '../context/ApiKeyContext';
 
@@ -12,74 +12,62 @@ export interface GenerationResult {
   error?: string;
 }
 
+interface GenerateOptions {
+  formData: FormData;
+  apiKey: string | null;
+  selectedModel: string;
+  maxTokens: number;
+}
+
+export interface GenerateResponse {
+  success: boolean;
+  data: string | null;
+  error: string | null;
+}
+
 /**
  * Generate self-introduction using the selected model provider
  * This service acts as a facade over the different model implementations
  */
 export const generateSelfIntroduction = async (
-  formData: FormData,
-  modelProvider: ModelProvider,
-  apiKey: string,
-  modelId?: string
-): Promise<GenerationResult> => {
-  console.log('[MODEL_SERVICE] 開始生成自我介紹', { 
-    modelProvider, 
-    modelId, 
-    hasApiKey: !!apiKey,
-    formDataSummary: {
-      hasPersonalInfo: !!formData.personalInfo,
-      hasIndustrySettings: !!formData.industrySettings,
-      hasGenerationSettings: !!formData.generationSettings
-    }
-  });
-  
+  options: GenerateOptions,
+  modelProvider: ModelProvider
+): Promise<GenerateResponse> => {
   try {
-    // Dispatch to appropriate model provider with the selected model ID
-    switch (modelProvider) {
-      case 'openai':
-        console.log('[MODEL_SERVICE] 使用 OpenAI 模型');
-        const openaiResult = await generateSelfIntro(formData, apiKey, modelId || 'gpt-4o');
-        console.log('[MODEL_SERVICE] 生成結果', { 
-          success: !openaiResult.error,
-          hasContent: !!openaiResult.content,
-          contentLength: openaiResult.content?.length || 0,
-          hasPrompt: !!openaiResult.prompt,
-          errorMessage: openaiResult.error
-        });
-        return {
-          content: openaiResult.content || '',
-          prompt: openaiResult.prompt,
-          error: openaiResult.error
-        };
-        
-      case 'gemini':
-        console.log('[MODEL_SERVICE] 使用 Gemini 模型');
-        const geminiResult = await generateGeminiSelfIntro(formData, apiKey, modelId || 'gemini-1.5-pro');
-        console.log('[MODEL_SERVICE] 生成結果', { 
-          success: !geminiResult.error,
-          hasContent: !!geminiResult.content,
-          contentLength: geminiResult.content?.length || 0,
-          hasPrompt: !!geminiResult.prompt,
-          errorMessage: geminiResult.error
-        });
-        return {
-          content: geminiResult.content || '',
-          prompt: geminiResult.prompt,
-          error: geminiResult.error
-        };
-        
-      default:
-        console.log('[MODEL_SERVICE] 錯誤：未支援的模型提供者', { modelProvider });
-        return {
-          content: '',
-          error: `未支援的模型提供者: ${modelProvider}`
-        };
+    const { formData, apiKey, selectedModel, maxTokens } = options;
+    
+    if (!apiKey) {
+      console.error(`No API key provided for ${modelProvider} provider`);
+      return {
+        success: false,
+        data: null,
+        error: `請設定 ${modelProvider === 'openai' ? 'OpenAI' : 'Google Gemini'} API key 才能使用此功能。`
+      };
     }
-  } catch (error) {
-    console.error('[MODEL_SERVICE] 生成自我介紹時出錯:', error);
+    
+    let response: string;
+    
+    if (modelProvider === 'openai') {
+      // Call OpenAI API
+      console.log(`Generating with OpenAI model: ${selectedModel}`);
+      response = await generateOpenAISelfIntro(formData, apiKey, selectedModel, maxTokens);
+    } else {
+      // Call Gemini API
+      console.log(`Generating with Gemini model: ${selectedModel}`);
+      response = await generateGeminiSelfIntro(formData, apiKey, selectedModel, maxTokens);
+    }
+    
     return {
-      content: '',
-      error: error instanceof Error ? error.message : '未知錯誤'
+      success: true,
+      data: response,
+      error: null
+    };
+  } catch (error) {
+    console.error('Error generating self introduction:', error);
+    return {
+      success: false,
+      data: null,
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
     };
   }
 }; 
