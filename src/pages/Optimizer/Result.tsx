@@ -14,6 +14,7 @@ import {
   faClock,
   faMicrophone
 } from '@fortawesome/free-solid-svg-icons';
+import { parse } from 'marked';
 
 interface OptimizerProject {
   id: string;
@@ -27,6 +28,7 @@ interface OptimizerProject {
     duration: number;
     url: string;
   };
+  transcript?: string;
   optimizationResults?: {
     optimizedAudioUrl?: string;
     report?: {
@@ -34,7 +36,8 @@ interface OptimizerProject {
       clarity: number;
       confidence: number;
       improvements: string[];
-    }
+    };
+    detailedGuidance?: string;
   };
 }
 
@@ -50,7 +53,7 @@ const Result = () => {
   const [optimizedAudioUrl, setOptimizedAudioUrl] = useState<string | null>(null);
   const [isOriginalPlaying, setIsOriginalPlaying] = useState(false);
   const [isOptimizedPlaying, setIsOptimizedPlaying] = useState(false);
-  const [activeTab, setActiveTab] = useState<'comparison' | 'report'>('comparison');
+  const [activeTab, setActiveTab] = useState<'comparison' | 'report' | 'detailed'>('comparison');
   
   const originalAudioRef = useRef<HTMLAudioElement | null>(null);
   const optimizedAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -343,6 +346,18 @@ const Result = () => {
               >
                 改善報告
               </button>
+              {project.optimizationResults?.detailedGuidance && (
+                <button
+                  className={`py-2 px-4 font-medium text-sm border-b-2 ${
+                    activeTab === 'detailed'
+                    ? 'border-purple-600 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                  onClick={() => setActiveTab('detailed')}
+                >
+                  詳細指導
+                </button>
+              )}
             </div>
             
             {activeTab === 'comparison' && (
@@ -562,6 +577,39 @@ const Result = () => {
                       </div>
                     )}
                   </div>
+                </div>
+                
+                <div className="mt-8 flex flex-wrap justify-center gap-4">
+                  <button
+                    onClick={() => setActiveTab('comparison')}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition flex items-center"
+                  >
+                    <FontAwesomeIcon icon={faPlay} className="mr-2" />
+                    聆聽對比
+                  </button>
+                  <button
+                    onClick={startNewOptimization}
+                    className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition flex items-center"
+                  >
+                    <FontAwesomeIcon icon={faRedo} className="mr-2" />
+                    重新優化
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {activeTab === 'detailed' && project.optimizationResults.detailedGuidance && (
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800 mb-2">詳細優化指導</h2>
+                  <p className="text-gray-600">根據您的自我介紹表現，我們提供以下專業指導和練習建議</p>
+                </div>
+                
+                <div className="prose prose-indigo max-w-none">
+                  {/* Render markdown content */}
+                  <div dangerouslySetInnerHTML={{ 
+                    __html: parse(project.optimizationResults.detailedGuidance) 
+                  }} />
                 </div>
                 
                 <div className="mt-8 flex flex-wrap justify-center gap-4">

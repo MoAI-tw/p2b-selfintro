@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faMagic, 
@@ -11,6 +11,8 @@ import {
   faPlay,
   faPause
 } from '@fortawesome/free-solid-svg-icons';
+import { useApiKey } from '../../context/ApiKeyContext';
+import { analyzeAudio, AudioAnalysisRequest, OptimizerSettings, generateOptimizationGuidance } from '../../utils/optimizer/promptService';
 
 interface OptimizerProject {
   id: string;
@@ -24,6 +26,7 @@ interface OptimizerProject {
     duration: number;
     url: string;
   };
+  transcript?: string;
   optimizationResults?: {
     optimizedAudioUrl?: string;
     report?: {
@@ -31,7 +34,8 @@ interface OptimizerProject {
       clarity: number;
       confidence: number;
       improvements: string[];
-    }
+    };
+    detailedGuidance?: string;
   };
 }
 
@@ -39,16 +43,16 @@ interface OptimizationParams {
   improveClarity: boolean;
   improveConfidence: boolean;
   adjustSpeed: boolean;
-  targetSpeed: 'slower' | 'moderate' | 'faster';
-  generateReport: boolean;
+  enhanceStructure: boolean;
+  reduceFillers: boolean;
 }
 
 const defaultParams: OptimizationParams = {
   improveClarity: true,
   improveConfidence: true,
   adjustSpeed: true,
-  targetSpeed: 'moderate',
-  generateReport: true
+  enhanceStructure: false,
+  reduceFillers: false
 };
 
 const Optimize = () => {
@@ -68,6 +72,7 @@ const Optimize = () => {
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
+  const { apiKey, geminiApiKey, modelProvider, selectedModel } = useApiKey();
 
   // Load project data
   useEffect(() => {
@@ -188,28 +193,43 @@ const Optimize = () => {
     }, 300);
     
     try {
-      // In a real application, you would send the audio file and optimization parameters
-      // to your backend API for processing. Here we'll simulate the process.
+      // Get API key from context based on provider
+      const currentApiKey = modelProvider === 'openai' ? apiKey : geminiApiKey;
       
-      // Allow some time to simulate processing
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      if (!currentApiKey) {
+        setError(`請設定 ${modelProvider === 'openai' ? 'OpenAI' : 'Google Gemini'} API key 才能使用此功能。`);
+        setOptimizing(false);
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+        }
+        return;
+      }
       
-      // Generate mock optimization results
-      const optimizedAudioUrl = project.audioFile.url; // In a real app, this would be a new URL
-      
-      // Generate mock report
-      const report = {
-        speechRate: Math.random() * 2 + 3, // 3-5 range
-        clarity: Math.random() * 30 + 70, // 70-100 range
-        confidence: Math.random() * 30 + 65, // 65-95 range
-        improvements: [
-          '語速過快，建議放慢說話節奏，特別是在介紹重點成就時',
-          '部分字詞發音不夠清晰，尤其是專業術語',
-          '說話語調較為平淡，可以增加語調變化以突顯重點',
-          '停頓時間不足，適當的停頓可以讓聽眾更好地吸收信息',
-          '音量時大時小，建議保持一致的音量水平'
-        ].slice(0, Math.floor(Math.random() * 3) + 2) // Pick 2-4 improvements randomly
+      // Prepare analysis request
+      const analysisRequest: AudioAnalysisRequest = {
+        audioFile: project.audioFile,
+        transcript: project.transcript || undefined,
+        settings: params as OptimizerSettings
       };
+      
+      // Call the audio analysis service
+      setProgress(30); // Update progress
+      const analysisResult = await analyzeAudio(
+        analysisRequest,
+        currentApiKey,
+        selectedModel.id,
+        modelProvider
+      );
+      
+      // Generate detailed guidance
+      setProgress(60); // Update progress
+      const detailedGuidance = await generateOptimizationGuidance(
+        analysisRequest,
+        analysisResult,
+        currentApiKey,
+        selectedModel.id,
+        modelProvider
+      );
       
       // Update project with optimization results
       const updatedProject: OptimizerProject = {
@@ -217,8 +237,9 @@ const Optimize = () => {
         status: 'optimized',
         lastEdited: new Date().toLocaleDateString(),
         optimizationResults: {
-          optimizedAudioUrl,
-          report
+          optimizedAudioUrl: project.audioFile.url, // In a real app, this might be a different URL
+          report: analysisResult,
+          detailedGuidance // Add detailed guidance to results
         }
       };
       
@@ -405,61 +426,50 @@ const Optimize = () => {
                   </div>
                   <div className="ml-3 text-sm">
                     <label htmlFor="adjustSpeed" className="font-medium text-gray-700">調整語速</label>
-                    <p className="text-gray-500">根據內容和情境調整說話速度</p>
-                    
-                    {params.adjustSpeed && (
-                      <div className="mt-3 space-x-4">
-                        <label className="inline-flex items-center">
-                          <input
-                            type="radio"
-                            name="targetSpeed"
-                            value="slower"
-                            checked={params.targetSpeed === 'slower'}
-                            onChange={() => handleParamChange('targetSpeed', 'slower')}
-                            className="h-4 w-4 text-purple-600 focus:ring-purple-500"
-                          />
-                          <span className="ml-2 text-gray-700">放慢</span>
-                        </label>
-                        <label className="inline-flex items-center">
-                          <input
-                            type="radio"
-                            name="targetSpeed"
-                            value="moderate"
-                            checked={params.targetSpeed === 'moderate'}
-                            onChange={() => handleParamChange('targetSpeed', 'moderate')}
-                            className="h-4 w-4 text-purple-600 focus:ring-purple-500"
-                          />
-                          <span className="ml-2 text-gray-700">適中</span>
-                        </label>
-                        <label className="inline-flex items-center">
-                          <input
-                            type="radio"
-                            name="targetSpeed"
-                            value="faster"
-                            checked={params.targetSpeed === 'faster'}
-                            onChange={() => handleParamChange('targetSpeed', 'faster')}
-                            className="h-4 w-4 text-purple-600 focus:ring-purple-500"
-                          />
-                          <span className="ml-2 text-gray-700">加快</span>
-                        </label>
-                      </div>
-                    )}
+                    <p className="text-gray-500">調整語速至最佳水平，使聽眾能夠清楚理解您的訊息</p>
                   </div>
                 </div>
+                
+                {params.adjustSpeed && (
+                  <div className="ml-8 mt-2 mb-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center">
+                        <input
+                          id="enhanceStructure"
+                          type="checkbox"
+                          checked={params.enhanceStructure}
+                          onChange={e => handleParamChange('enhanceStructure', e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <label htmlFor="enhanceStructure" className="ml-2 text-sm text-gray-700">改善結構</label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          id="reduceFillers"
+                          type="checkbox"
+                          checked={params.reduceFillers}
+                          onChange={e => handleParamChange('reduceFillers', e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <label htmlFor="reduceFillers" className="ml-2 text-sm text-gray-700">減少填充詞</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex items-start">
                   <div className="flex h-5 items-center">
                     <input
-                      id="generateReport"
+                      id="generateAnalysisReport"
                       type="checkbox"
-                      checked={params.generateReport}
-                      onChange={e => handleParamChange('generateReport', e.target.checked)}
+                      checked={true}
+                      disabled={true}
                       className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                     />
                   </div>
                   <div className="ml-3 text-sm">
-                    <label htmlFor="generateReport" className="font-medium text-gray-700">生成改善報告</label>
-                    <p className="text-gray-500">分析您的音檔並提供詳細的改善建議</p>
+                    <label htmlFor="generateAnalysisReport" className="font-medium text-gray-700">生成分析報告</label>
+                    <p className="text-gray-500">提供詳細的分析報告和改進建議</p>
                   </div>
                 </div>
               </div>
