@@ -20,8 +20,10 @@ export const generateGeminiSelfIntro = async (
     let endpoint = '';
     if (modelId === 'gemini-pro') {
       endpoint = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`;
-    } else if (modelId === 'gemini-1.5-pro') {
-      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
+    } else if (modelId === 'gemini-1.5-pro' || modelId === 'gemini-1.5-flash') {
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
+    } else if (modelId === 'gemini-2.0-flash' || modelId === 'gemini-2.0-flash-lite') {
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
     } else {
       throw new Error(`不支持的 Gemini 模型: ${modelId}`);
     }

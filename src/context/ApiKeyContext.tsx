@@ -57,11 +57,8 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
   const handleModelProviderChange = (provider: ModelProvider) => {
     setModelProvider(provider);
     // Set default model for the new provider
-    if (provider === 'openai') {
-      setSelectedModelId('gpt-3.5-turbo');
-    } else {
-      setSelectedModelId('gemini-1.5-pro');
-    }
+    const defaultModel = getDefaultModel(provider);
+    setSelectedModelId(defaultModel.id);
   };
   
   const handleSelectedModelChange = (modelId: string) => {
