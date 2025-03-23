@@ -19,6 +19,11 @@ import UseCases from './pages/UseCases';
 import FAQ from './pages/FAQ';
 import History from './pages/History';
 import PromptEditor from './pages/PromptEditor';
+import Optimizer from './pages/Optimizer';
+import Recorder from './pages/Optimizer/Recorder';
+import Optimize from './pages/Optimizer/Optimize';
+import OptimizerResult from './pages/Optimizer/Result';
+import OptimizerHistory from './pages/Optimizer/History';
 
 // 滾動復位組件
 function ScrollToTop() {
@@ -34,7 +39,14 @@ function ScrollToTop() {
 // FooterWrapper 組件，有條件地顯示 Footer
 function FooterWrapper() {
   const location = useLocation();
-  const hideFooterPaths = ['/profile', '/industry', '/settings'];
+  const hideFooterPaths = [
+    '/profile', 
+    '/industry', 
+    '/settings',
+    '/optimizer/recorder',
+    '/optimizer/optimize',
+    '/optimizer/result'
+  ];
   
   if (hideFooterPaths.some(path => location.pathname.startsWith(path))) {
     return null;
@@ -69,6 +81,12 @@ function App() {
                     <Route path="/faq" element={<FAQ />} />
                     <Route path="/history" element={<History />} />
                     <Route path="/prompt-editor" element={<PromptEditor />} />
+                    {/* 自我介紹優化頁面 */}
+                    <Route path="/optimizer" element={<Optimizer />} />
+                    <Route path="/optimizer/recorder" element={<Recorder />} />
+                    <Route path="/optimizer/optimize" element={<Optimize />} />
+                    <Route path="/optimizer/result" element={<OptimizerResult />} />
+                    <Route path="/optimizer/history" element={<OptimizerHistory />} />
                   </Routes>
                 </Suspense>
               </main>
