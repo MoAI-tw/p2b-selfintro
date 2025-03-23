@@ -1,25 +1,30 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserTie, faUserEdit, faBriefcase, faMagic, faGlobe } from '@fortawesome/free-solid-svg-icons';
+import { faUserTie, faUserEdit, faBriefcase, faMagic, faGlobe, faMicrophone, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 
 const Home = () => {
   const [language, setLanguage] = useState<'en' | 'zh'>('zh');
+  const productsRef = useRef<HTMLDivElement>(null);
+
+  const scrollToProducts = (e: React.MouseEvent) => {
+    e.preventDefault();
+    productsRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const content = {
     en: {
-      headline: "Create Perfect Self-Introductions in 3 Steps",
-      subheading: "Whether it's for job interviews, career development, or social occasions, let AI help you craft professional and compelling self-introductions",
+      headline: "Professional Self-Introduction Tools",
+      subheading: "Generate perfect self-introductions or optimize your speech with our AI-powered tools",
       getStarted: "Get Started",
       learnMore: "Learn More",
-      howToUse: "How It Works",
-      steps: "Three simple steps to create your customized self-introduction",
-      step1Title: "1. Fill in Your Profile",
-      step1Text: "Enter your experience, education, skills, and professional background",
-      step2Title: "2. Select Your Industry",
-      step2Text: "Specify the industry and position you're applying for to make the content more targeted",
-      step3Title: "3. Generate & Optimize",
-      step3Text: "Generate self-introduction content with one click, save multiple versions and fine-tune",
+      howToUse: "Our Products",
+      product1Title: "Self-Introduction Generator",
+      product1Text: "Create tailored self-introductions for job interviews, career development, or social occasions",
+      product1Button: "Create Now",
+      product2Title: "Self-Introduction Optimizer",
+      product2Text: "Upload your recording and get AI feedback to improve your self-introduction speech",
+      product2Button: "Optimize Now",
       ctaTitle: "Start Creating Your Professional Self-Introduction Now",
       ctaText: "No registration required, use our basic features for free",
       home: "Home",
@@ -28,18 +33,17 @@ const Home = () => {
       faq: "FAQ"
     },
     zh: {
-      headline: "三步驟產生完美的自我介紹",
-      subheading: "無論是求職面試、職涯發展還是社交場合，讓AI助你打造專業且有感染力的自我介紹",
+      headline: "專業自我介紹工具",
+      subheading: "生成完美的自我介紹內容或是優化您的口語表達，全由AI智能助力",
       getStarted: "立即開始",
       learnMore: "了解更多",
-      howToUse: "如何使用",
-      steps: "三個簡單步驟，打造專屬自我介紹",
-      step1Title: "1. 填寫個人資料",
-      step1Text: "輸入您的經歷、學歷、技能和專業背景等相關資訊",
-      step2Title: "2. 選擇應徵產業",
-      step2Text: "指定您想要應徵的產業和職位，讓內容更具針對性",
-      step3Title: "3. 生成與優化",
-      step3Text: "一鍵生成自我介紹內容，可保存多個版本並進行微調",
+      howToUse: "我們的產品",
+      product1Title: "自我介紹生成器",
+      product1Text: "為求職面試、職涯發展或社交場合創建量身定制的自我介紹內容",
+      product1Button: "立即創建",
+      product2Title: "自我介紹優化器",
+      product2Text: "上傳您的錄音，獲取AI反饋以改進您的自我介紹演講",
+      product2Button: "立即優化",
       ctaTitle: "立即開始打造您的專業自我介紹",
       ctaText: "無需註冊，免費使用我們的基礎功能",
       home: "首頁",
@@ -70,7 +74,17 @@ const Home = () => {
               <Link to="faq" className="text-gray-600 hover:text-indigo-600 font-medium">{t.faq}</Link>
             </div>
             <div className="flex items-center">
-              <Link to="/projects" className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition">{t.getStarted}</Link>
+              <a 
+                href="#products" 
+                onClick={scrollToProducts} 
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-all duration-300 cursor-pointer flex items-center group"
+              >
+                <span>{t.getStarted}</span>
+                <FontAwesomeIcon 
+                  icon={faChevronDown} 
+                  className="ml-2 transform group-hover:translate-y-1 transition-transform duration-300" 
+                />
+              </a>
             </div>
           </div>
         </div>
@@ -95,8 +109,24 @@ const Home = () => {
               <h1 className="text-4xl md:text-5xl font-bold mb-4">{t.headline}</h1>
               <p className="text-xl mb-8">{t.subheading}</p>
               <div className="flex space-x-4">
-                <Link to="/projects" className="bg-white text-indigo-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition">{t.getStarted}</Link>
-                <a href="#how-it-works" className="border border-white text-white px-6 py-3 rounded-lg font-medium hover:bg-white hover:bg-opacity-10 transition">{t.learnMore}</a>
+                <a 
+                  href="#products" 
+                  onClick={scrollToProducts} 
+                  className="bg-white text-indigo-600 px-6 py-3 rounded-lg font-medium hover:bg-opacity-90 transition-all duration-300 cursor-pointer flex items-center group"
+                >
+                  <span>{t.getStarted}</span>
+                  <FontAwesomeIcon 
+                    icon={faChevronDown} 
+                    className="ml-2 transform group-hover:translate-y-1 transition-transform duration-300" 
+                  />
+                </a>
+                <a 
+                  href="#products" 
+                  onClick={scrollToProducts} 
+                  className="border border-white text-white px-6 py-3 rounded-lg font-medium hover:bg-white hover:bg-opacity-10 transition-all duration-300 cursor-pointer"
+                >
+                  {t.learnMore}
+                </a>
               </div>
             </div>
             <div className="md:w-1/2 md:pl-12">
@@ -106,37 +136,46 @@ const Home = () => {
         </div>
       </div>
 
-      {/* How It Works */}
-      <div id="how-it-works" className="py-16 bg-white">
+      {/* Products Section */}
+      <div id="products" ref={productsRef} className="py-16 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-gray-800 mb-4">{t.howToUse}</h2>
-            <p className="text-xl text-gray-600">{t.steps}</p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-10">
-            <div className="text-center">
-              <div className="bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <FontAwesomeIcon icon={faUserEdit} className="text-indigo-600 text-3xl" />
+          <div className="grid md:grid-cols-2 gap-10">
+            {/* Product 1: Self-Introduction Generator */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+              <div className="h-48 bg-indigo-100 flex items-center justify-center">
+                <FontAwesomeIcon icon={faUserEdit} className="text-indigo-600 text-6xl" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">{t.step1Title}</h3>
-              <p className="text-gray-600">{t.step1Text}</p>
+              <div className="p-6">
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">{t.product1Title}</h3>
+                <p className="text-gray-600 mb-6">{t.product1Text}</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">3 {language === 'en' ? 'steps' : '步驟'}</span>
+                  <Link to="/projects" className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition">
+                    {t.product1Button}
+                  </Link>
+                </div>
+              </div>
             </div>
             
-            <div className="text-center">
-              <div className="bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <FontAwesomeIcon icon={faBriefcase} className="text-indigo-600 text-3xl" />
+            {/* Product 2: Self-Introduction Optimizer */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+              <div className="h-48 bg-purple-100 flex items-center justify-center">
+                <FontAwesomeIcon icon={faMicrophone} className="text-purple-600 text-6xl" />
               </div>
-              <h3 className="text-xl font-semibold mb-3">{t.step2Title}</h3>
-              <p className="text-gray-600">{t.step2Text}</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <FontAwesomeIcon icon={faMagic} className="text-indigo-600 text-3xl" />
+              <div className="p-6">
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">{t.product2Title}</h3>
+                <p className="text-gray-600 mb-6">{t.product2Text}</p>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">3 {language === 'en' ? 'steps' : '步驟'}</span>
+                  <Link to="/optimizer" className="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition">
+                    {t.product2Button}
+                  </Link>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-3">{t.step3Title}</h3>
-              <p className="text-gray-600">{t.step3Text}</p>
             </div>
           </div>
         </div>
@@ -147,7 +186,10 @@ const Home = () => {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold mb-6">{t.ctaTitle}</h2>
           <p className="text-xl mb-8 max-w-3xl mx-auto">{t.ctaText}</p>
-          <Link to="/projects" className="bg-white text-indigo-600 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-100 transition inline-block">{t.getStarted}</Link>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Link to="/projects" className="bg-white text-indigo-600 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-100 transition">{t.product1Button}</Link>
+            <Link to="/optimizer" className="bg-purple-700 text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-purple-800 transition">{t.product2Button}</Link>
+          </div>
         </div>
       </div>
     </div>
