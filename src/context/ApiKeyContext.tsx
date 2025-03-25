@@ -22,6 +22,7 @@ export interface ApiKeyContextType {
   availableModels: ModelInfo[];
   selectedModel: ModelInfo;
   setSelectedModel: (modelId: string) => void;
+  saveModelSettingsToLocalStorage: () => void;
 }
 
 const ApiKeyContext = createContext<ApiKeyContextType | undefined>(undefined);
@@ -44,8 +45,8 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [maxTokens, setMaxTokensState] = useState(1500); // Default value
-  const [modelProvider, setModelProvider] = useState<ModelProvider>('openai');
-  const [selectedModelId, setSelectedModelId] = useState('gpt-3.5-turbo');
+  const [modelProvider, setModelProviderState] = useState<ModelProvider>('openai');
+  const [selectedModelId, setSelectedModelIdState] = useState('gpt-3.5-turbo');
   
   // Get available models based on current provider from modelConfig.ts
   const availableModels = modelProvider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS;
@@ -55,41 +56,63 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
   
   // Methods to update model provider and selected model
   const handleModelProviderChange = (provider: ModelProvider) => {
-    setModelProvider(provider);
+    setModelProviderState(provider);
     // Set default model for the new provider
     const defaultModel = getDefaultModel(provider);
-    setSelectedModelId(defaultModel.id);
+    setSelectedModelIdState(defaultModel.id);
+    
+    // Save to localStorage
+    localStorage.setItem('model_provider', provider);
+    localStorage.setItem('selected_model_id', defaultModel.id);
   };
   
   const handleSelectedModelChange = (modelId: string) => {
-    setSelectedModelId(modelId);
+    setSelectedModelIdState(modelId);
+    // Save to localStorage
+    localStorage.setItem('selected_model_id', modelId);
   };
 
   // Set API Key methods
   const setApiKey = (key: string) => {
     setApiKeyState(key);
+    localStorage.setItem('openai_api_key', key);
     setError(null);
   };
   
   const setGeminiApiKey = (key: string) => {
     setGeminiApiKeyState(key);
+    localStorage.setItem('gemini_api_key', key);
     setError(null);
   };
   
   const setMaxTokens = (tokens: number) => {
     setMaxTokensState(tokens);
+    localStorage.setItem('max_tokens', tokens.toString());
   };
   
-  // Initialize API keys
+  // Save all model settings to localStorage
+  const saveModelSettingsToLocalStorage = () => {
+    localStorage.setItem('model_provider', modelProvider);
+    localStorage.setItem('selected_model_id', selectedModelId);
+    localStorage.setItem('max_tokens', maxTokens.toString());
+    if (apiKey) localStorage.setItem('openai_api_key', apiKey);
+    if (geminiApiKey) localStorage.setItem('gemini_api_key', geminiApiKey);
+  };
+  
+  // Initialize API keys and model settings
   useEffect(() => {
-    const loadApiKeys = async () => {
+    const loadSettings = async () => {
       try {
         setLoading(true);
         
-        // First try to load from localStorage if available
+        // Load API keys
         const openaiKey = localStorage.getItem('openai_api_key');
         const geminiKey = localStorage.getItem('gemini_api_key');
         const maxTokensValue = localStorage.getItem('max_tokens');
+        
+        // Load model settings
+        const storedModelProvider = localStorage.getItem('model_provider') as ModelProvider | null;
+        const storedModelId = localStorage.getItem('selected_model_id');
         
         // If localStorage has values, use them
         if (openaiKey) {
@@ -124,15 +147,36 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
             setMaxTokensState(parseInt(maxTokensEnv, 10));
           }
         }
+        
+        // Set model provider if found in localStorage
+        if (storedModelProvider && (storedModelProvider === 'openai' || storedModelProvider === 'gemini')) {
+          setModelProviderState(storedModelProvider);
+        }
+        
+        // Set selected model if found in localStorage
+        if (storedModelId) {
+          // Verify the model exists for the selected provider
+          const provider = storedModelProvider || modelProvider;
+          const models = provider === 'openai' ? OPENAI_MODELS : GEMINI_MODELS;
+          const modelExists = models.some(model => model.id === storedModelId);
+          
+          if (modelExists) {
+            setSelectedModelIdState(storedModelId);
+          } else {
+            // If model doesn't exist, use default model for provider
+            const defaultModel = getDefaultModel(provider);
+            setSelectedModelIdState(defaultModel.id);
+          }
+        }
       } catch (err) {
-        console.error('Error loading API keys:', err);
-        setError('載入 API 密鑰時發生錯誤。請確保您的設定正確。');
+        console.error('Error loading settings:', err);
+        setError('載入設定時發生錯誤。請確保您的設定正確。');
       } finally {
         setLoading(false);
       }
     };
     
-    loadApiKeys();
+    loadSettings();
   }, []);
   
   return (
@@ -151,7 +195,8 @@ export const ApiKeyProvider = ({ children }: ApiKeyProviderProps) => {
         setModelProvider: handleModelProviderChange,
         availableModels,
         selectedModel,
-        setSelectedModel: handleSelectedModelChange
+        setSelectedModel: handleSelectedModelChange,
+        saveModelSettingsToLocalStorage
       }}
     >
       {children}
