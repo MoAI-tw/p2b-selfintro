@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import ProgressBar from '../components/ProgressBar';
 import { useFormContext } from '../context/FormContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faAngleLeft, faPaperPlane, faChartPie, faLanguage, faComment, faFileAlt, faCheck, faSave, faTimes, faExclamationCircle, faArrowLeft, faArrowRight, faKey, faSliders, faGlobe, faMicrophone, faMagic, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faAngleLeft, faPaperPlane, faChartPie, faLanguage, faComment, faFileAlt, faCheck, faSave, faTimes, faExclamationCircle, faArrowLeft, faArrowRight, faKey, faSliders, faGlobe, faMicrophone, faMagic, faSpinner, faEye, faPlus, faEdit } from '@fortawesome/free-solid-svg-icons';
 import Modal from '../components/Modal';
 import ApiKeySettings from '../components/ApiKeySettings';
 import DraggableModal from '../components/DraggableModal';
 import { useApiKey } from '../context/ApiKeyContext';
 import { generateSelfIntroduction } from '../utils/modelService';
+import { generatePrompt } from '../utils/openai';
+import ModelSettingsDashboard from '../components/ModelSettingsDashboard';
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +19,13 @@ const Settings: React.FC = () => {
     formData, 
     updateGenerationSettings, 
     updateIndustrySettings,
-    storeGenerationResult
+    storeGenerationResult,
+    updatePersonalInfo,
+    savePromptTemplatesToLocalStorage,
+    addPromptTemplate,
+    updatePromptTemplate,
+    getPromptTemplatesList,
+    getAllTemplatesForExport
   } = useFormContext();
   
   const { 
@@ -36,6 +44,21 @@ const Settings: React.FC = () => {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  
+  // 新增模板編輯相關狀態
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateEditMode, setTemplateEditMode] = useState<'create' | 'edit'>('create');
+  const [editingTemplate, setEditingTemplate] = useState<{
+    id: string;
+    name: string;
+    content: string;
+    description: string;
+  }>({
+    id: '',
+    name: '',
+    content: '',
+    description: ''
+  });
   
   const [localSettings, setLocalSettings] = useState({
     tone: formData.generationSettings.tone,
@@ -72,9 +95,37 @@ const Settings: React.FC = () => {
             
             // Load saved form data if available
             if (project.formData) {
-              // Load generation settings
+              // 加載個人信息
+              if (project.formData.personalInfo) {
+                // 更新個人信息
+                updatePersonalInfo(project.formData.personalInfo);
+              }
+              
+              // 加載行業設置
+              if (project.formData.industrySettings) {
+                const industrySettings = project.formData.industrySettings;
+                
+                // 更新焦點領域
+                if (industrySettings.focusAreas) {
+                  setSelectedFocusAreas(industrySettings.focusAreas);
+                }
+                
+                // 完整更新行業設置
+                updateIndustrySettings(industrySettings);
+                
+                console.log('已加載行業設置:', {
+                  industry: industrySettings.industry,
+                  jobPosition: industrySettings.specificPosition,
+                  keywords: industrySettings.keywords,
+                  focusAreas: industrySettings.focusAreas
+                });
+              }
+              
+              // 加載生成設置
               if (project.formData.generationSettings) {
                 const genSettings = project.formData.generationSettings;
+                
+                // 更新本地設置狀態
                 setLocalSettings({
                   tone: genSettings.tone || formData.generationSettings.tone,
                   outputLength: genSettings.outputLength || formData.generationSettings.outputLength,
@@ -86,12 +137,38 @@ const Settings: React.FC = () => {
                   focusOnRecentExperience: genSettings.focusOnRecentExperience !== undefined ? 
                     genSettings.focusOnRecentExperience : formData.generationSettings.focusOnRecentExperience
                 });
-                updateGenerationSettings(genSettings);
-              }
-              
-              // Load focus areas
-              if (project.formData.industrySettings && project.formData.industrySettings.focusAreas) {
-                setSelectedFocusAreas(project.formData.industrySettings.focusAreas);
+                
+                // Check if we have saved templates in the project
+                if (genSettings.promptTemplates && typeof genSettings.promptTemplates === 'object') {
+                  console.log('Found saved templates in project:', Object.keys(genSettings.promptTemplates).length);
+                  
+                  // We'll merge default templates with saved ones to ensure we have all necessary templates
+                  const mergedSettings = {
+                    ...genSettings,
+                    promptTemplates: {
+                      ...formData.generationSettings.promptTemplates, // Start with current defaults 
+                      ...genSettings.promptTemplates // Override with project-specific templates
+                    }
+                  };
+                  
+                  // 完整更新生成設置 with merged templates
+                  updateGenerationSettings(mergedSettings);
+                  
+                  // Save the updated templates to localStorage for future use
+                  savePromptTemplatesToLocalStorage();
+                } else {
+                  // No templates found, just update other settings
+                  console.log('No templates found in project, using current templates');
+                  updateGenerationSettings(genSettings);
+                }
+                
+                console.log('已加載生成設置:', {
+                  duration: genSettings.duration,
+                  language: genSettings.language,
+                  style: genSettings.style,
+                  activePromptId: genSettings.activePromptId,
+                  tone: genSettings.tone
+                });
               }
             }
           }
@@ -100,12 +177,15 @@ const Settings: React.FC = () => {
         }
       }
     }
-  }, [location, formData.generationSettings, updateGenerationSettings]);
+  }, [location, updateGenerationSettings, updateIndustrySettings, updatePersonalInfo, formData.generationSettings, savePromptTemplatesToLocalStorage]);
 
   // Track changes to enable/disable save button
   useEffect(() => {
     setHasChanges(true);
   }, [localSettings, selectedFocusAreas, projectTitle]);
+  
+  // Remove the auto-save prompt templates effect since we now directly save when making changes
+  // This effect is no longer needed
 
   // Validate project title when it changes
   useEffect(() => {
@@ -151,60 +231,67 @@ const Settings: React.FC = () => {
       return;
     }
     
-    // Get existing projects from localStorage
-    const storedProjects = localStorage.getItem('projects');
-    let projects = [];
-    
-    if (storedProjects) {
-      projects = JSON.parse(storedProjects);
-    }
-    
-    // Check for duplicate project titles and generate a unique title if needed
-    let uniqueTitle = projectTitle;
-    let counter = 1;
-    
-    while (projects.some((project: { title: string }) => project.title === uniqueTitle)) {
-      uniqueTitle = `${projectTitle} (${counter})`;
-      counter++;
-    }
-    
-    // If title was modified, update the displayed title
-    if (uniqueTitle !== projectTitle) {
-      setProjectTitle(uniqueTitle);
-    }
-    
-    // Create a new project with the unique title and all form data
-    const projectData = {
-      id: Date.now(), // Generate a unique ID based on timestamp
-      title: uniqueTitle,
-      status: 'draft',
-      lastEdited: new Date().toLocaleDateString(),
-      description: '自我介紹專案',
-      formData: {
-        personalInfo: formData.personalInfo,
-        industrySettings: formData.industrySettings,
-        generationSettings: {
-          ...formData.generationSettings,
-          // Update with local state
-          tone: localSettings.tone,
-          outputLength: localSettings.outputLength,
-          language: localSettings.language,
-          highlightStrengths: localSettings.highlightStrengths,
-          includeCallToAction: localSettings.includeCallToAction,
-          focusOnRecentExperience: localSettings.focusOnRecentExperience
+    try {
+      // Get existing projects from localStorage
+      const storedProjects = localStorage.getItem('projects');
+      const projects = storedProjects ? JSON.parse(storedProjects) : [];
+      
+      // Find existing project with the same ID if editing
+      const urlParams = new URLSearchParams(location.search);
+      const projectId = urlParams.get('id');
+      const existingProject = projectId ? projects.find((p: any) => p.id.toString() === projectId) : null;
+      
+      // Get a copy of all current templates to include with the project
+      const allTemplates = getAllTemplatesForExport();
+      
+      // Create a project data object with the current form state
+      const currentFormData = formData;
+      const newProjectData = {
+        id: existingProject ? existingProject.id : Date.now(),
+        title: projectTitle,
+        created: existingProject ? existingProject.created : Date.now(),
+        updated: Date.now(),
+        formData: {
+          personalInfo: currentFormData.personalInfo,
+          industrySettings: {
+            ...currentFormData.industrySettings,
+            focusAreas: selectedFocusAreas
+          },
+          generationSettings: {
+            ...currentFormData.generationSettings,
+            tone: localSettings.tone,
+            outputLength: localSettings.outputLength,
+            language: localSettings.language,
+            highlightStrengths: localSettings.highlightStrengths,
+            includeCallToAction: localSettings.includeCallToAction,
+            focusOnRecentExperience: localSettings.focusOnRecentExperience,
+            activePromptId: currentFormData.generationSettings.activePromptId,
+            promptTemplates: allTemplates  // Include all templates with the project
+          }
         }
-      }
-    };
-    
-    // Add the new project to the array
-    projects.push(projectData);
-    
-    // Save back to localStorage
-    localStorage.setItem('projects', JSON.stringify(projects));
-    
-    // Alert user
-    alert('專案已儲存！');
-    setHasChanges(false);
+      };
+      
+      // Remove existing project if it exists (to avoid duplicates)
+      const filteredProjects = projectId 
+        ? projects.filter((p: any) => p.id.toString() !== projectId) 
+        : projects;
+      
+      // Add the new project to the array
+      filteredProjects.push(newProjectData);
+      
+      // Save back to localStorage
+      localStorage.setItem('projects', JSON.stringify(filteredProjects));
+      
+      // Make sure all templates are also saved separately in localStorage
+      savePromptTemplatesToLocalStorage();
+      
+      // Alert user
+      alert('專案已儲存！');
+      setHasChanges(false);
+    } catch (error) {
+      console.error('Error saving project:', error);
+      setGenerationError('保存專案時發生錯誤');
+    }
   };
   
   // 計算估算的 Token 數量
@@ -279,16 +366,52 @@ const Settings: React.FC = () => {
       const idFromUrl = searchParams.get('id');
       console.log('[GENERATE] 專案資訊', { title: projectTitle, id: idFromUrl });
       
+      // 確保使用當前的表單數據，檢查並補充缺少的必要參數
+      const currentFormData = {...formData};
+      
+      // 根據本地設置更新生成設置參數
+      currentFormData.generationSettings = {
+        ...currentFormData.generationSettings,
+        language: localSettings.language,
+        tone: localSettings.tone,
+        outputLength: localSettings.outputLength,
+        highlightStrengths: localSettings.highlightStrengths,
+        includeCallToAction: localSettings.includeCallToAction,
+        focusOnRecentExperience: localSettings.focusOnRecentExperience
+      };
+      
+      // 確保行業設置包含必要參數
+      currentFormData.industrySettings = {
+        ...currentFormData.industrySettings,
+        focusAreas: selectedFocusAreas
+      };
+      
+      // 輸出完整表單數據日誌，檢查關鍵參數是否存在
+      console.log('[GENERATE] 生成前的表單數據檢查', {
+        // 生成設置
+        duration: currentFormData.generationSettings.duration,
+        language: currentFormData.generationSettings.language,
+        style: currentFormData.generationSettings.style,
+        activePromptId: currentFormData.generationSettings.activePromptId,
+        useCustomPrompt: currentFormData.generationSettings.useCustomPrompt,
+        
+        // 行業設置
+        industry: currentFormData.industrySettings.industry,
+        jobPosition: currentFormData.industrySettings.specificPosition,
+        keywords: currentFormData.industrySettings.keywords,
+        focusAreas: currentFormData.industrySettings.focusAreas
+      });
+      
       console.log('[GENERATE] 呼叫 API 生成自我介紹', { 
         modelProvider,
         selectedModel,
-        hasFormData: !!formData
+        hasFormData: !!currentFormData
       });
       
       // 生成自我介紹
       const result = await generateSelfIntroduction(
         {
-          formData,
+          formData: currentFormData,
           apiKey: currentApiKey,
           selectedModel: selectedModel.id,
           maxTokens
@@ -311,11 +434,23 @@ const Settings: React.FC = () => {
         const cost = calculateCost(tokens, modelProvider, selectedModel.id);
         console.log('[GENERATE] 計算 token 和成本', { tokens, cost });
         
+        // 嘗試獲取和記錄生成的提示詞
+        let promptText = '';
+        try {
+          promptText = generatePrompt(currentFormData);
+          console.log('[GENERATE] 生成的提示詞:', {
+            length: promptText.length,
+            preview: promptText.substring(0, 100) + '...'
+          });
+        } catch (err) {
+          console.error('[GENERATE] 無法獲取提示詞:', err);
+        }
+        
         // 存儲生成結果
         console.log('[GENERATE] 儲存生成結果到 sessionStorage');
         storeGenerationResult({
           text: result.data,
-          prompt: '',
+          prompt: promptText, // 保存提示詞
           projectTitle: projectTitle,
           projectId: idFromUrl || undefined,
           modelProvider,
@@ -377,6 +512,120 @@ const Settings: React.FC = () => {
     { value: 'personality', label: '個人特質' }
   ];
 
+  // 新增處理模板相關的函數
+  const handleCreateTemplate = () => {
+    setTemplateEditMode('create');
+    setEditingTemplate({
+      id: `custom_${Date.now()}`,
+      name: '',
+      content: '',
+      description: ''
+    });
+    setShowTemplateModal(true);
+  };
+  
+  const handleEditTemplate = (templateId: string) => {
+    const template = formData.generationSettings.promptTemplates[templateId];
+    if (template) {
+      setTemplateEditMode('edit');
+      setEditingTemplate({...template});
+      setShowTemplateModal(true);
+    }
+  };
+  
+  const handleTemplateChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setEditingTemplate(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleSaveTemplate = () => {
+    // 驗證表單
+    if (!editingTemplate.name.trim() || !editingTemplate.content.trim()) {
+      // 顯示錯誤
+      return;
+    }
+    
+    if (templateEditMode === 'create') {
+      // 使用新的 addPromptTemplate 方法新增模板
+      const newTemplateData = {
+        name: editingTemplate.name,
+        content: editingTemplate.content,
+        description: editingTemplate.description
+      };
+      
+      const newId = addPromptTemplate(newTemplateData);
+      
+      // Update editing template ID for consistent state
+      setEditingTemplate(prev => ({...prev, id: newId}));
+    } else {
+      // 使用新的 updatePromptTemplate 方法更新模板
+      updatePromptTemplate(editingTemplate.id, {
+        name: editingTemplate.name,
+        content: editingTemplate.content,
+        description: editingTemplate.description
+      });
+    }
+    
+    // No need to call savePromptTemplatesToLocalStorage here anymore
+    // as the addPromptTemplate and updatePromptTemplate methods directly 
+    // save to localStorage
+    
+    // 關閉模態框
+    setShowTemplateModal(false);
+    setHasChanges(true);
+  };
+
+  // 監聽路由變化，當從提示詞編輯器返回時重載
+  useEffect(() => {
+    // 檢查是否從提示詞編輯器頁面返回
+    const prevPath = sessionStorage.getItem('prevPath');
+    if (prevPath === '/prompt-editor') {
+      console.log('從提示詞編輯器返回，重新載入模板');
+      // 設置當前模板ID
+      const templateId = formData.generationSettings.activePromptId;
+      if (templateId) {
+        updateGenerationSettings({
+          activePromptId: templateId,
+          useCustomPrompt: true
+        });
+      }
+    }
+    // 記錄當前路徑
+    sessionStorage.setItem('prevPath', location.pathname);
+  }, [location.pathname, formData.generationSettings.activePromptId, updateGenerationSettings]);
+
+  // Add an event listener to save templates before leaving the page
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Only try to save if there are unsaved changes (which should be rare since we save directly)
+      if (hasChanges) {
+        // This is just a backup to catch any edge cases
+        console.log('Detected unsaved changes before unload, attempting backup save');
+        savePromptTemplatesToLocalStorage();
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasChanges, savePromptTemplatesToLocalStorage]);
+
+  // Safely get prompt templates list with error handling
+  const safeGetPromptTemplatesList = () => {
+    try {
+      const templates = getPromptTemplatesList();
+      return Array.isArray(templates) ? templates : [];
+    } catch (error) {
+      console.error('Error getting prompt templates list:', error);
+      return [];
+    }
+  };
+
   return (
     <div className="bg-gray-50 min-h-screen">
       {/* 頂部導航區 */}
@@ -423,11 +672,18 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      <ProgressBar currentStep={3} />
+      <ProgressBar currentStep={3} projectName={projectTitle} />
       
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="bg-white rounded-lg shadow-md p-6 my-8">
-          <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">生成設置</h1>
+        {/* AI Model Dashboard */}
+        <div className="mb-6">
+          <ModelSettingsDashboard onSettingsClick={() => setShowApiKeyModal(true)} />
+        </div>
+        
+        {/* Main content */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h1 className="text-2xl font-bold text-gray-800 mb-6">生成設定</h1>
+          <p className="text-gray-600 mb-8">設定您的自我介紹生成偏好</p>
           
           {generationError && (
             <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg mb-6">
@@ -628,25 +884,92 @@ const Settings: React.FC = () => {
                 <FontAwesomeIcon icon={faMagic} className="text-indigo-600 mr-2" />提示詞設定
               </h2>
               
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
                 <div className="flex justify-between items-center mb-2">
-                  <div className="font-medium text-gray-800">自定義提示詞模板</div>
-                  <div className="text-sm text-gray-500">
-                    {formData.generationSettings.useCustomPrompt ? '已啟用' : '未啟用'}
-                  </div>
+                  <div className="font-medium text-gray-800">提示詞模板選擇</div>
                 </div>
                 
                 <p className="text-gray-600 text-sm mb-4">
-                  使用自定義提示詞模板可以更精確地控制自我介紹的生成結果。您可以通過提示詞編輯器來創建和管理模板。
+                  選擇預設或自定義的提示詞模板，以控制自我介紹的生成風格和內容。
                 </p>
                 
-                <Link 
-                  to="/prompt-editor" 
-                  className="inline-block bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-2 rounded-md hover:shadow-md transition-all"
-                >
-                  <FontAwesomeIcon icon={faMagic} className="mr-2" />
-                  前往提示詞編輯器
-                </Link>
+                <div className="grid grid-cols-1 gap-4 mb-4">
+                  {safeGetPromptTemplatesList().map((template) => (
+                    <div 
+                      key={template.id}
+                      className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                        formData.generationSettings.activePromptId === template.id
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                      onClick={() => {
+                        updateGenerationSettings({
+                          activePromptId: template.id,
+                          promptTemplate: template.content,
+                          useCustomPrompt: true
+                        });
+                      }}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-gray-800">{template.name}</h3>
+                        {formData.generationSettings.activePromptId === template.id && (
+                          <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full text-xs">已選擇</span>
+                        )}
+                      </div>
+                      
+                      <p className="text-gray-600 text-sm mb-3">
+                        {template.description || '自定義提示詞模板'}
+                      </p>
+                      
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center mr-3"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Toggle preview
+                            const previewElem = document.getElementById(`preview-${template.id}`);
+                            if (previewElem) {
+                              previewElem.classList.toggle('hidden');
+                            }
+                          }}
+                        >
+                          <FontAwesomeIcon icon={faEye} className="mr-1" />
+                          預覽內容
+                        </button>
+                        
+                        <button
+                          type="button"
+                          className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditTemplate(template.id);
+                          }}
+                        >
+                          <FontAwesomeIcon icon={faEdit} className="mr-1" />
+                          編輯
+                        </button>
+                      </div>
+                      
+                      <div id={`preview-${template.id}`} className="mt-3 hidden">
+                        <div className="bg-white border border-gray-200 rounded p-3 text-xs text-gray-600 max-h-40 overflow-y-auto">
+                          <pre className="whitespace-pre-wrap font-mono text-xs">{template.content}</pre>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex justify-end mt-2">
+                  <button
+                    type="button"
+                    onClick={handleCreateTemplate}
+                    className="text-sm text-indigo-600 hover:text-indigo-800"
+                  >
+                    <FontAwesomeIcon icon={faPlus} className="mr-1" />
+                    添加自定義模板
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -693,6 +1016,99 @@ const Settings: React.FC = () => {
         maxWidth="max-w-2xl"
       >
         <ApiKeySettings onClose={() => setShowApiKeyModal(false)} />
+      </DraggableModal>
+      
+      {/* Template Edit Modal */}
+      <DraggableModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        title={templateEditMode === 'create' ? '創建自定義模板' : '編輯模板'}
+        maxWidth="max-w-3xl"
+      >
+        <div className="p-4">
+          <div className="mb-4">
+            <label htmlFor="template-name" className="block text-sm font-medium text-gray-700 mb-2">
+              模板名稱
+            </label>
+            <input
+              type="text"
+              id="template-name"
+              name="name"
+              value={editingTemplate.name}
+              onChange={handleTemplateChange}
+              placeholder="給你的模板起個名字"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          
+          <div className="mb-4">
+            <label htmlFor="template-description" className="block text-sm font-medium text-gray-700 mb-2">
+              模板描述
+            </label>
+            <input
+              type="text"
+              id="template-description"
+              name="description"
+              value={editingTemplate.description}
+              onChange={handleTemplateChange}
+              placeholder="簡短描述此模板的用途和特點"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            />
+          </div>
+          
+          <div className="mb-4">
+            <label htmlFor="template-content" className="block text-sm font-medium text-gray-700 mb-2">
+              模板內容
+            </label>
+            <div className="text-xs text-gray-500 mb-2">
+              使用 {"{變數名}"} 格式引用用戶資料，例如: {"{name}"}, {"{education}"}, {"{skills}"}
+            </div>
+            <textarea
+              id="template-content"
+              name="content"
+              value={editingTemplate.content}
+              onChange={handleTemplateChange}
+              rows={12}
+              placeholder="輸入你的提示詞模板..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+            />
+          </div>
+          
+          <div className="text-sm text-gray-600 mb-4">
+            <h4 className="font-medium mb-1">可用變數:</h4>
+            <div className="grid grid-cols-3 gap-2">
+              <span><code>{"{name}"}</code> - 姓名</span>
+              <span><code>{"{age}"}</code> - 年齡</span>
+              <span><code>{"{location}"}</code> - 所在地</span>
+              <span><code>{"{education}"}</code> - 教育背景</span>
+              <span><code>{"{skills}"}</code> - 技能專長</span>
+              <span><code>{"{experience}"}</code> - 工作經驗</span>
+              <span><code>{"{industry}"}</code> - 目標行業</span>
+              <span><code>{"{job_position}"}</code> - 應徵職位</span>
+              <span><code>{"{language}"}</code> - 語言</span>
+              <span><code>{"{tone}"}</code> - 語調</span>
+              <span><code>{"{length}"}</code> - 長度</span>
+              <span><code>{"{duration}"}</code> - 時間長度</span>
+            </div>
+          </div>
+          
+          <div className="flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={() => setShowTemplateModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveTemplate}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            >
+              儲存模板
+            </button>
+          </div>
+        </div>
       </DraggableModal>
     </div>
   );
