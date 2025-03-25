@@ -224,7 +224,7 @@ const Projects = () => {
       email: sampleProject.formData.personalInfo.email || '',
       phone: sampleProject.formData.personalInfo.phone || '',
       location: sampleProject.formData.personalInfo.location || '',
-      age: '',  // FormContext 需要這個欄位
+      birthday: '',  // FormContext 需要這個欄位
       
       // 將教育轉換為正確的格式
       education: Array.isArray(sampleProject.formData.personalInfo.education) 

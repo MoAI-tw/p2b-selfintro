@@ -27,7 +27,7 @@ export interface Skill {
 
 export interface PersonalInfo {
   name: string;
-  age: string;
+  birthday: string;
   education: Education[];
   workExperience: WorkExperience[];
   skills: Skill[];
@@ -112,7 +112,7 @@ export interface GenerationRecord {
 const defaultFormData: FormData = {
   personalInfo: {
     name: '',
-    age: '',
+    birthday: '',
     education: [{ school: '', degree: '', major: '', graduationYear: '' }],
     workExperience: [{ company: '', position: '', startDate: '', endDate: '', isCurrent: false, description: '' }],
     skills: [{ name: '', level: '' }],
