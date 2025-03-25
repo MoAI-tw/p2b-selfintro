@@ -623,7 +623,19 @@ const Industry = () => {
               <p className="text-gray-600 mb-4">您可以添加職位相關的關鍵詞，系統會自動將這些關鍵詞融入自我介紹中</p>
               
               <div className="mb-4">
-                <label className="block text-gray-700 font-medium mb-2">已選擇的關鍵詞</label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-gray-700 font-medium">已選擇的關鍵詞</label>
+                  {formData.industrySettings.keywords.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => formData.industrySettings.keywords.forEach(keyword => removeKeyword(keyword))}
+                      className="text-red-500 hover:text-red-700 text-sm flex items-center"
+                    >
+                      <FontAwesomeIcon icon={faTrash} className="mr-1" />
+                      清空所有關鍵詞
+                    </button>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-lg min-h-[60px]">
                   {formData.industrySettings.keywords.length > 0 ? (
                     formData.industrySettings.keywords.map((keyword: string) => (
