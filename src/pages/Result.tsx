@@ -5,8 +5,10 @@ import { useApiKey } from '../context/ApiKeyContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCopy, faDownload, faRedo, faEdit, faThumbsUp, faThumbsDown, faSave, faTimes, faCheck, faExclamationCircle, faHistory, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { generateSelfIntroduction } from '../utils/modelService';
+import { generatePrompt } from '../utils/openai';
 import Modal from '../components/Modal';
 import GenerationHistory from '../components/GenerationHistory';
+import ProgressBar from '../components/ProgressBar';
 
 const Result: React.FC = () => {
   const navigate = useNavigate();
@@ -27,10 +29,10 @@ const Result: React.FC = () => {
     apiKey, 
     geminiApiKey, 
     modelProvider, 
-    isLoading: isApiKeyLoading, 
+    loading: isApiKeyLoading, 
     error: apiKeyError,
-    modelId,
-    selectedModel
+    selectedModel,
+    maxTokens
   } = useApiKey();
   
   const [generatedText, setGeneratedText] = useState<string>('');
@@ -189,7 +191,7 @@ const Result: React.FC = () => {
           formData: { ...formData },
           generatedText: storedResult.text,
           modelProvider,
-          modelId,
+          modelId: storedResult.modelId,
           estimatedTokens: storedResult.estimatedTokens,
           estimatedCost: storedResult.estimatedCost,
           promptTemplate: formData.generationSettings.promptTemplate,
@@ -292,34 +294,42 @@ const Result: React.FC = () => {
     try {
       // 生成自我介紹
       const result = await generateSelfIntroduction(
-        formData,
-        modelProvider,
-        currentApiKey,
-        modelId
+        {
+          formData: formData,
+          apiKey: currentApiKey,
+          selectedModel: selectedModel.id,
+          maxTokens: maxTokens
+        },
+        modelProvider
       );
       
       if (result.error) {
         setError(result.error);
-      } else if (result.content) {
+      } else if (result.data) {
         // 更新 UI
-        setGeneratedText(result.content);
-        if (result.prompt) {
-          setActualPrompt(result.prompt);
-        }
+        setGeneratedText(result.data);
         
         // 計算成本
-        const tokens = getApproximateTokenCount(result.content);
-        const cost = calculateCost(tokens, modelProvider, modelId);
+        const tokens = getApproximateTokenCount(result.data);
+        const cost = calculateCost(tokens, modelProvider, selectedModel.id);
         setEstimatedCost(cost);
+        
+        // 取得提示詞
+        let promptText = '';
+        try {
+          promptText = generatePrompt(formData);
+        } catch (err) {
+          console.error('無法獲取提示詞:', err);
+        }
         
         // 暫存結果
         storeGenerationResult({
-          text: result.content,
-          prompt: result.prompt || '',
+          text: result.data,
+          prompt: promptText,
           projectTitle: projectTitle,
           projectId: typeof projectId === 'string' ? projectId : String(projectId),
           modelProvider,
-          modelId,
+          modelId: selectedModel.id,
           estimatedTokens: tokens,
           estimatedCost: cost
         });
@@ -329,14 +339,17 @@ const Result: React.FC = () => {
           projectId: typeof projectId === 'string' ? projectId : String(projectId),
           projectTitle: projectTitle,
           formData: { ...formData },
-          generatedText: result.content,
+          generatedText: result.data,
           modelProvider,
-          modelId,
+          modelId: selectedModel.id,
           estimatedTokens: tokens,
           estimatedCost: cost,
           promptTemplate: formData.generationSettings.promptTemplate,
-          actualPrompt: result.prompt || ''
+          actualPrompt: promptText
         });
+        
+        // 更新顯示的提示詞
+        setActualPrompt(promptText);
       } else {
         setError('生成自我介紹時發生未知錯誤');
       }
@@ -397,7 +410,7 @@ const Result: React.FC = () => {
             },
             generatedText: generatedText,
             modelProvider,
-            modelId
+            modelId: selectedModel.id
           };
         }
         return project;
@@ -421,7 +434,7 @@ const Result: React.FC = () => {
         },
         generatedText: generatedText,
         modelProvider,
-        modelId
+        modelId: selectedModel.id
       };
       
       projects.push(projectData);
@@ -717,6 +730,8 @@ const Result: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* <ProgressBar currentStep={4} projectName={projectTitle} /> */}
     </div>
   );
 };

@@ -323,7 +323,7 @@ const Profile = () => {
         </div>
       </div>
 
-      <ProgressBar currentStep={1} />
+      <ProgressBar currentStep={1} projectName={projectTitle} />
 
       {/* 主要內容 */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
