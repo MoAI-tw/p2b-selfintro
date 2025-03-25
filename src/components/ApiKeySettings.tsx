@@ -21,7 +21,8 @@ const ApiKeySettings = ({ onClose }: ApiKeySettingsProps) => {
     setModelProvider,
     availableModels,
     selectedModel,
-    setSelectedModel
+    setSelectedModel,
+    saveModelSettingsToLocalStorage
   } = useApiKey();
   
   const [showKey, setShowKey] = useState(false);
@@ -53,15 +54,13 @@ const ApiKeySettings = ({ onClose }: ApiKeySettingsProps) => {
   };
   
   const handleSaveAPIKeys = () => {
-    // Save keys to localStorage
-    if (inputOpenAIKey) localStorage.setItem('openai_api_key', inputOpenAIKey);
-    if (inputGeminiKey) localStorage.setItem('gemini_api_key', inputGeminiKey);
-    if (inputMaxTokens) localStorage.setItem('max_tokens', inputMaxTokens);
-    
     // Update context with new values
     if (inputOpenAIKey) setApiKey(inputOpenAIKey);
     if (inputGeminiKey) setGeminiApiKey(inputGeminiKey);
     if (inputMaxTokens) setMaxTokens(parseInt(inputMaxTokens, 10));
+    
+    // Save all settings to localStorage
+    saveModelSettingsToLocalStorage();
     
     // Show success indicator
     setKeysSaved(true);
