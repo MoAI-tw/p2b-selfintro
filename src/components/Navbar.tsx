@@ -12,6 +12,7 @@ const Navbar = () => {
   const isHistoryPage = location.pathname === '/history';
   const isOptimizerHistoryPage = location.pathname === '/optimizer/history';
   const isPromptEditorPage = location.pathname === '/prompt-editor';
+  const isOptimizerPromptEditorPage = location.pathname === '/optimizer/prompt-editor';
   const isFeaturePage = location.pathname === '/features';
   const isUseCasePage = location.pathname === '/use-cases';
   const isFaqPage = location.pathname === '/faq';
@@ -21,7 +22,7 @@ const Navbar = () => {
   const isResultPage = location.pathname === '/result';
   const isOptimizerResultPage = location.pathname === '/optimizer/result';
   
-  // 判斷是否為優化相關頁面
+  // 判斷是否為優化相關頁面 (include prompt editor as well in this check)
   const isOptimizerPage = location.pathname.startsWith('/optimizer');
   
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
@@ -38,6 +39,7 @@ const Navbar = () => {
   console.log('isAppPage:', isAppPage);
   console.log('isOptimizerPage:', isOptimizerPage);
   console.log('isOptimizerHistoryPage:', isOptimizerHistoryPage);
+  console.log('isOptimizerPromptEditorPage:', isOptimizerPromptEditorPage);
   console.log('isResultPage:', isResultPage);
   
   // 如果是首頁，不顯示導航欄，因為Home組件已經有自己的導航元素
@@ -112,18 +114,22 @@ const Navbar = () => {
           </div>
           <div className="flex items-center">
             <div className="hidden md:flex items-center space-x-8">
-              <Link to="/" className={location.pathname === '/' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>首頁</Link>
+              {isOptimizerPage ? (
+                <Link to="/" className={location.pathname === '/' ? 'text-purple-600 font-medium' : 'text-gray-600 hover:text-purple-600 font-medium'}>首頁</Link>
+              ) : (
+                <Link to="/" className={location.pathname === '/' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>首頁</Link>
+              )}
               
               {/* 根據是否在優化頁面決定"我的專案"連結到哪裡 */}
               {isOptimizerPage ? (
-                <Link to="/optimizer" className={location.pathname === '/optimizer' ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>我的專案</Link>
+                <Link to="/optimizer" className={location.pathname === '/optimizer' ? 'text-purple-600 font-medium' : 'text-gray-600 hover:text-purple-600 font-medium'}>我的專案</Link>
               ) : (
                 <Link to="/projects" className={isProjectsPage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>我的專案</Link>
               )}
               
               {/* 根據是否在優化頁面決定"生成歷史"連結到哪裡 */}
               {isOptimizerPage ? (
-                <Link to="/optimizer/history" className={isOptimizerHistoryPage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>
+                <Link to="/optimizer/history" className={isOptimizerHistoryPage ? 'text-purple-600 font-medium' : 'text-gray-600 hover:text-purple-600 font-medium'}>
                   <FontAwesomeIcon icon={faHistory} className="mr-1" />
                   優化歷史
                 </Link>
@@ -134,10 +140,24 @@ const Navbar = () => {
                 </Link>
               )}
               
-              <Link to="/prompt-editor" className={isPromptEditorPage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}>
-                <FontAwesomeIcon icon={faMagic} className="mr-1" />
-                提示詞編輯
-              </Link>
+              {/* 根據是否在優化頁面決定"提示詞編輯"連結到哪裡 */}
+              {isOptimizerPage ? (
+                <Link 
+                  to="/optimizer/prompt-editor" 
+                  className={isOptimizerPromptEditorPage ? 'text-purple-600 font-medium' : 'text-gray-600 hover:text-purple-600 font-medium'}
+                >
+                  <FontAwesomeIcon icon={faMagic} className="mr-1" />
+                  提示詞編輯
+                </Link>
+              ) : (
+                <Link 
+                  to="/prompt-editor" 
+                  className={isPromptEditorPage ? 'text-indigo-600 font-medium' : 'text-gray-600 hover:text-indigo-600 font-medium'}
+                >
+                  <FontAwesomeIcon icon={faMagic} className="mr-1" />
+                  提示詞編輯
+                </Link>
+              )}
             </div>
             
             {/* API設定按鈕 */}
