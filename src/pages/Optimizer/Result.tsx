@@ -38,6 +38,13 @@ interface OptimizerProject {
       improvements: string[];
     };
     detailedGuidance?: string;
+    promptTemplate?: {
+      id: string;
+      name: string;
+      description: string;
+      analysisTemplate: string;
+      guidanceTemplate: string;
+    };
   };
 }
 
@@ -130,6 +137,9 @@ const Result = () => {
       // Create a unique ID for this history record
       const historyId = `history_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
+      // Log project optimization results for debugging
+      console.log("Saving to history with optimization results:", currentProject.optimizationResults);
+      
       // Create the history record
       const historyRecord = {
         id: historyId,
@@ -167,6 +177,7 @@ const Result = () => {
         
         // Save updated records
         localStorage.setItem('optimizerHistoryRecords', JSON.stringify(historyRecords));
+        console.log("Saved history record with prompt template:", historyRecord.optimizationResults?.promptTemplate);
       }
     } catch (e) {
       console.error('Error saving to history:', e);

@@ -47,7 +47,15 @@ interface OptimizationRecord {
       clarity: number;
       confidence: number;
       improvements: string[];
-    }
+    };
+    detailedGuidance?: string;
+    promptTemplate?: {
+      id: string;
+      name: string;
+      description: string;
+      analysisTemplate: string;
+      guidanceTemplate: string;
+    };
   };
 }
 
@@ -280,6 +288,125 @@ const OptimizerHistory: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* 優化詳情模態窗 */}
+      <Modal
+        isOpen={showModal}
+        onClose={closeModal}
+        title={selectedRecord ? `${selectedRecord.projectTitle} - 優化詳情` : '優化詳情'}
+      >
+        {selectedRecord && (
+          <div className="p-6 max-h-[70vh] overflow-y-auto">
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">基本資訊</h3>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">優化時間</p>
+                    <p className="text-base text-gray-900">{formatDate(selectedRecord.timestamp)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">音檔資訊</p>
+                    <p className="text-base text-gray-900">
+                      {selectedRecord.audioFile?.name} ({Math.round(selectedRecord.audioFile?.duration || 0)}秒, {Math.round(selectedRecord.audioFile?.size / 1024)}KB)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {selectedRecord.optimizationResults?.report && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">評估結果</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <p className="text-sm text-gray-500">語速</p>
+                      <p className="text-lg font-semibold">{selectedRecord.optimizationResults.report.speechRate.toFixed(1)}/5</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">清晰度</p>
+                      <p className="text-lg font-semibold">{Math.round(selectedRecord.optimizationResults.report.clarity)}/100</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">自信度</p>
+                      <p className="text-lg font-semibold">{Math.round(selectedRecord.optimizationResults.report.confidence)}/100</p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">改進建議</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {selectedRecord.optimizationResults.report.improvements.map((improvement, index) => (
+                        <li key={index} className="text-sm text-gray-800">{improvement}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {selectedRecord.optimizationResults?.promptTemplate && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">使用的提示詞模板</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500">模板名稱</p>
+                    <p className="text-base text-gray-900">{selectedRecord.optimizationResults.promptTemplate.name}</p>
+                  </div>
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500">模板描述</p>
+                    <p className="text-base text-gray-900">{selectedRecord.optimizationResults.promptTemplate.description}</p>
+                  </div>
+                  <div className="mb-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-gray-500">分析提示詞</p>
+                      <button 
+                        className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded transition"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedRecord.optimizationResults!.promptTemplate!.analysisTemplate);
+                          showToast('已複製分析提示詞', 'success');
+                        }}
+                      >
+                        複製
+                      </button>
+                    </div>
+                    <div className="mt-2 bg-white p-3 rounded border border-gray-200 text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                      {selectedRecord.optimizationResults.promptTemplate.analysisTemplate}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-gray-500">優化指導提示詞</p>
+                      <button 
+                        className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded transition"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedRecord.optimizationResults!.promptTemplate!.guidanceTemplate);
+                          showToast('已複製優化指導提示詞', 'success');
+                        }}
+                      >
+                        複製
+                      </button>
+                    </div>
+                    <div className="mt-2 bg-white p-3 rounded border border-gray-200 text-sm text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                      {selectedRecord.optimizationResults.promptTemplate.guidanceTemplate}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex justify-end">
+              <button
+                onClick={() => viewProjectDetails(selectedRecord.projectId)}
+                className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
+              >
+                查看完整結果
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
       
       {/* 刪除確認模態窗 */}
       <Modal

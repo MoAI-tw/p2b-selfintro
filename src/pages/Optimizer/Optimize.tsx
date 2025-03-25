@@ -9,10 +9,19 @@ import {
   faInfoCircle,
   faCheck,
   faPlay,
-  faPause
+  faPause,
+  faEdit
 } from '@fortawesome/free-solid-svg-icons';
 import { useApiKey } from '../../context/ApiKeyContext';
-import { analyzeAudio, AudioAnalysisRequest, OptimizerSettings, generateOptimizationGuidance } from '../../utils/optimizer/promptService';
+import { useOptimizerPrompt } from '../../context/OptimizerPromptContext';
+import { 
+  analyzeAudio, 
+  AudioAnalysisRequest, 
+  OptimizerSettings, 
+  generateOptimizationGuidance,
+  generateAudioAnalysisPrompt,
+  generateAudioOptimizationPrompt
+} from '../../utils/optimizer/promptService';
 
 interface OptimizerProject {
   id: string;
@@ -36,6 +45,13 @@ interface OptimizerProject {
       improvements: string[];
     };
     detailedGuidance?: string;
+    promptTemplate?: {
+      id: string;
+      name: string;
+      description: string;
+      analysisTemplate: string;
+      guidanceTemplate: string;
+    };
   };
 }
 
@@ -73,6 +89,7 @@ const Optimize = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
   const { apiKey, geminiApiKey, modelProvider, selectedModel } = useApiKey();
+  const { currentTemplate, useCustomPrompt } = useOptimizerPrompt();
 
   // Load project data
   useEffect(() => {
@@ -205,11 +222,22 @@ const Optimize = () => {
         return;
       }
       
+      // Log the model and prompt template information
+      console.log("Using model provider:", modelProvider);
+      console.log("Selected model:", selectedModel);
+      console.log("Current template:", currentTemplate);
+      console.log("Using custom prompt:", useCustomPrompt);
+      
       // Prepare analysis request
       const analysisRequest: AudioAnalysisRequest = {
         audioFile: project.audioFile,
         transcript: project.transcript || undefined,
-        settings: params as OptimizerSettings
+        settings: params as OptimizerSettings,
+        customTemplate: useCustomPrompt && currentTemplate ? {
+          useCustom: true,
+          analysisTemplate: currentTemplate.analysisTemplate,
+          guidanceTemplate: currentTemplate.guidanceTemplate
+        } : undefined
       };
       
       // Call the audio analysis service
@@ -231,6 +259,26 @@ const Optimize = () => {
         modelProvider
       );
       
+      // Prepare the prompt template info
+      const promptTemplateInfo = useCustomPrompt && currentTemplate 
+        ? { 
+            id: currentTemplate.id,
+            name: currentTemplate.name,
+            description: currentTemplate.description,
+            analysisTemplate: currentTemplate.analysisTemplate,
+            guidanceTemplate: currentTemplate.guidanceTemplate
+          } 
+        : { 
+            id: 'default',
+            name: '預設模板',
+            description: '系統預設的分析模板',
+            analysisTemplate: generateAudioAnalysisPrompt(analysisRequest),
+            guidanceTemplate: generateAudioOptimizationPrompt(analysisRequest, analysisResult)
+          };
+          
+      // Log prompt template info before saving
+      console.log("Prompt template to be saved:", promptTemplateInfo);
+      
       // Update project with optimization results
       const updatedProject: OptimizerProject = {
         ...project,
@@ -239,9 +287,13 @@ const Optimize = () => {
         optimizationResults: {
           optimizedAudioUrl: project.audioFile.url, // In a real app, this might be a different URL
           report: analysisResult,
-          detailedGuidance // Add detailed guidance to results
+          detailedGuidance, // Add detailed guidance to results
+          promptTemplate: promptTemplateInfo
         }
       };
+      
+      // Log the updated project with optimization results
+      console.log("Updated project with optimization results:", updatedProject.optimizationResults);
       
       // Update localStorage
       const storedProjects = localStorage.getItem('optimizerProjects');
@@ -293,6 +345,17 @@ const Optimize = () => {
           <h1 className="text-2xl font-bold text-gray-800">
             {project ? `優化 "${project.title}"` : '優化自我介紹'}
           </h1>
+          
+          {!optimizing && (
+            <Link
+              to="/optimizer/prompt-editor"
+              className="ml-auto text-purple-600 hover:text-purple-800 flex items-center"
+              title="編輯提示詞"
+            >
+              <FontAwesomeIcon icon={faEdit} className="mr-1" />
+              <span className="hidden sm:inline">編輯提示詞</span>
+            </Link>
+          )}
         </div>
         
         {error && (
@@ -339,6 +402,15 @@ const Optimize = () => {
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-2">優化您的自我介紹</h2>
               <p className="text-gray-600">選擇以下優化選項，系統將根據您的選擇進行優化處理</p>
+              
+              {useCustomPrompt && currentTemplate && (
+                <div className="mt-2 bg-purple-50 border-l-4 border-purple-500 text-purple-700 p-3 rounded">
+                  <div className="flex items-center">
+                    <FontAwesomeIcon icon={faInfoCircle} className="mr-2" />
+                    <span>目前使用自定義提示詞模板: <strong>{currentTemplate.name}</strong></span>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Preview Original Audio */}
