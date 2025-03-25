@@ -6,6 +6,7 @@ import Footer from './components/Footer';
 import './App.css'
 import { FormProvider } from './context/FormContext';
 import { ApiKeyProvider } from './context/ApiKeyContext';
+import { OptimizerPromptProvider } from './context/OptimizerPromptContext';
 import { ToastProvider } from './components/ToastContainer';
 import Home from './pages/Home';
 import Profile from './pages/Profile';
@@ -24,6 +25,7 @@ import Recorder from './pages/Optimizer/Recorder';
 import Optimize from './pages/Optimizer/Optimize';
 import OptimizerResult from './pages/Optimizer/Result';
 import OptimizerHistory from './pages/Optimizer/History';
+import OptimizerPromptEditor from './pages/OptimizerPromptEditor';
 
 // 滾動復位組件
 function ScrollToTop() {
@@ -60,39 +62,42 @@ function App() {
     <Router>
       <FormProvider>
         <ApiKeyProvider>
-          <ToastProvider>
-            <ScrollToTop />
-            <div className="flex flex-col min-h-screen">
-              <Navbar />
-              <main className="flex-grow">
-                <Suspense fallback={<div className="flex items-center justify-center h-screen">
-                  <div className="text-indigo-600 text-2xl">Loading...</div>
-                </div>}>
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/industry" element={<Industry />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/result" element={<Result />} />
-                    <Route path="/versions" element={<Versions />} />
-                    <Route path="/projects" element={<Projects />} />
-                    <Route path="/features" element={<Features />} />
-                    <Route path="/use-cases" element={<UseCases />} />
-                    <Route path="/faq" element={<FAQ />} />
-                    <Route path="/history" element={<History />} />
-                    <Route path="/prompt-editor" element={<PromptEditor />} />
-                    {/* 自我介紹優化頁面 */}
-                    <Route path="/optimizer" element={<Optimizer />} />
-                    <Route path="/optimizer/recorder" element={<Recorder />} />
-                    <Route path="/optimizer/optimize" element={<Optimize />} />
-                    <Route path="/optimizer/result" element={<OptimizerResult />} />
-                    <Route path="/optimizer/history" element={<OptimizerHistory />} />
-                  </Routes>
-                </Suspense>
-              </main>
-              <FooterWrapper />
-            </div>
-          </ToastProvider>
+          <OptimizerPromptProvider>
+            <ToastProvider>
+              <ScrollToTop />
+              <div className="flex flex-col min-h-screen">
+                <Navbar />
+                <main className="flex-grow">
+                  <Suspense fallback={<div className="flex items-center justify-center h-screen">
+                    <div className="text-indigo-600 text-2xl">Loading...</div>
+                  </div>}>
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/profile" element={<Profile />} />
+                      <Route path="/industry" element={<Industry />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="/result" element={<Result />} />
+                      <Route path="/versions" element={<Versions />} />
+                      <Route path="/projects" element={<Projects />} />
+                      <Route path="/features" element={<Features />} />
+                      <Route path="/use-cases" element={<UseCases />} />
+                      <Route path="/faq" element={<FAQ />} />
+                      <Route path="/history" element={<History />} />
+                      <Route path="/prompt-editor" element={<PromptEditor />} />
+                      {/* 自我介紹優化頁面 */}
+                      <Route path="/optimizer" element={<Optimizer />} />
+                      <Route path="/optimizer/recorder" element={<Recorder />} />
+                      <Route path="/optimizer/optimize" element={<Optimize />} />
+                      <Route path="/optimizer/result" element={<OptimizerResult />} />
+                      <Route path="/optimizer/history" element={<OptimizerHistory />} />
+                      <Route path="/optimizer/prompt-editor" element={<OptimizerPromptEditor />} />
+                    </Routes>
+                  </Suspense>
+                </main>
+                <FooterWrapper />
+              </div>
+            </ToastProvider>
+          </OptimizerPromptProvider>
         </ApiKeyProvider>
       </FormProvider>
     </Router>
