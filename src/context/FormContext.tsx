@@ -738,7 +738,7 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
       if (storedTemplates) {
         // If we have stored templates, use them directly without merging with defaults
         try {
-          const parsedTemplates = JSON.parse(storedTemplates);
+        const parsedTemplates = JSON.parse(storedTemplates);
           if (parsedTemplates && typeof parsedTemplates === 'object') {
             console.log('Loaded stored templates from localStorage:', Object.keys(parsedTemplates).length);
             
@@ -748,16 +748,16 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
             const useCustomPromptSetting = localStorage.getItem('use_custom_prompt') || 'false';
             
             // Update form data with stored templates and settings
-            setFormData(prev => ({
-              ...prev,
-              generationSettings: {
-                ...prev.generationSettings,
+          setFormData(prev => ({
+            ...prev,
+            generationSettings: {
+              ...prev.generationSettings,
                 promptTemplates: parsedTemplates,
                 activePromptId: selectedTemplateId,
                 promptTemplate: currentPromptTemplate || (parsedTemplates[selectedTemplateId]?.content || ''),
                 useCustomPrompt: useCustomPromptSetting === 'true'
-              }
-            }));
+            }
+          }));
           }
         } catch (templateError) {
           console.error('Error parsing stored template collection:', templateError);
@@ -781,10 +781,10 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
   const initializeWithDefaultTemplates = () => {
     const defaultTemplates = {...defaultFormData.generationSettings.promptTemplates};
     
-    setFormData(prev => ({
-      ...prev,
-      generationSettings: {
-        ...prev.generationSettings,
+        setFormData(prev => ({
+          ...prev,
+          generationSettings: {
+            ...prev.generationSettings,
         promptTemplates: defaultTemplates,
         activePromptId: 'default',
         promptTemplate: defaultTemplates['default']?.content || '',
