@@ -40,14 +40,50 @@ export interface AudioAnalysisRequest {
   audioFile: AudioFile;
   transcript?: string;
   settings: OptimizerSettings;
+  customTemplate?: {
+    useCustom: boolean;
+    analysisTemplate?: string;
+    guidanceTemplate?: string;
+  };
 }
 
 /**
  * Generate a prompt for analyzing self-introduction audio
  */
 export const generateAudioAnalysisPrompt = (request: AudioAnalysisRequest): string => {
-  const { audioFile, transcript, settings } = request;
+  const { audioFile, transcript, settings, customTemplate } = request;
   
+  // If custom template is provided and enabled, use it
+  if (customTemplate?.useCustom && customTemplate.analysisTemplate) {
+    let prompt = customTemplate.analysisTemplate;
+    
+    // Replace variables in the template
+    prompt = prompt.replace('{transcript}', transcript || '未提供轉錄文本');
+    
+    // Build evaluation areas based on settings
+    let evaluationAreas = '';
+    if (settings.improveClarity) {
+      evaluationAreas += '- 發音清晰度：評估字詞發音是否清晰，咬字是否準確。\n';
+    }
+    if (settings.improveConfidence) {
+      evaluationAreas += '- 自信表現：評估語調是否自信，表達是否流利且有說服力。\n';
+    }
+    if (settings.adjustSpeed) {
+      evaluationAreas += '- 語速控制：評估說話速度是否適中，是否有過快或過慢的情況。\n';
+    }
+    if (settings.enhanceStructure) {
+      evaluationAreas += '- 結構組織：評估自我介紹的結構是否清晰，重點是否突出。\n';
+    }
+    if (settings.reduceFillers) {
+      evaluationAreas += '- 填充詞使用：評估是否過多使用「嗯」、「啊」等填充詞。\n';
+    }
+    
+    prompt = prompt.replace('{evaluation_areas}', evaluationAreas);
+    
+    return prompt;
+  }
+  
+  // Otherwise use the default prompt
   let prompt = `請分析這段自我介紹語音的表現。`;
   
   if (transcript) {
@@ -99,8 +135,30 @@ export const generateAudioAnalysisPrompt = (request: AudioAnalysisRequest): stri
  * Generate a prompt for optimizing self-introduction audio
  */
 export const generateAudioOptimizationPrompt = (request: AudioAnalysisRequest, analysisResult: AudioAnalysisResult): string => {
-  const { audioFile, transcript, settings } = request;
+  const { audioFile, transcript, settings, customTemplate } = request;
   
+  // If custom template is provided and enabled, use it
+  if (customTemplate?.useCustom && customTemplate.guidanceTemplate) {
+    let prompt = customTemplate.guidanceTemplate;
+    
+    // Replace variables in the template
+    prompt = prompt.replace('{transcript}', transcript || '未提供轉錄文本');
+    prompt = prompt.replace('{speech_rate}', analysisResult.speechRate.toString());
+    prompt = prompt.replace('{clarity}', analysisResult.clarity.toString());
+    prompt = prompt.replace('{confidence}', analysisResult.confidence.toString());
+    
+    // Format improvements
+    let improvements = '';
+    analysisResult.improvements.forEach((improvement, index) => {
+      improvements += `${index + 1}. ${improvement}\n`;
+    });
+    
+    prompt = prompt.replace('{improvements}', improvements);
+    
+    return prompt;
+  }
+  
+  // Otherwise use the default prompt
   let prompt = `請根據以下分析結果，提供優化這段自我介紹的具體建議和指導。`;
   
   if (transcript) {

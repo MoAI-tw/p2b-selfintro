@@ -25,68 +25,98 @@ interface OpenAIResponse {
  * Generates a prompt for creating a self-introduction based on form data
  */
 export const generatePrompt = (formData: FormData): string => {
-  // Extract input values from form data
-  const { 
-    personalInfo = {}, 
-    industrySettings = {},
-    generationSettings = {} 
-  } = formData;
+  // 直接從formData訪問嵌套數據，避免類型錯誤
   
-  const {
-    name = '',
-    age = '',
-    location = '',
-    education = [],
-    skills = [],
-    workExperience = []
-  } = personalInfo;
-  
-  const { 
-    industry = '', 
-    jobTitle = '', 
-    targetAudience = '', 
-    purpose = ''
-  } = industrySettings;
-  
-  const {
-    tone = '專業',
-    length = '中等',
-    language = '繁體中文',
-    includeHeader = true,
-    focusAreas = []
-  } = generationSettings;
-  
-  // Map education degrees to readable text
-  const formattedEducation = education.map(edu => {
-    return `- ${edu.degree ? mapDegreesToText(edu.degree) : '學位'}: ${edu.school}${edu.major ? `，專業：${edu.major}` : ''}${edu.year ? `，${edu.year}` : ''}`;
+  // 格式化教育背景
+  const formattedEducation = formData.personalInfo.education.map(edu => {
+    return `- ${edu.degree ? mapDegreesToText(edu.degree) : '學位'}: ${edu.school}${edu.major ? `，專業：${edu.major}` : ''}${edu.graduationYear ? `，${edu.graduationYear}` : ''}`;
   }).join('\n');
   
-  // Map skill levels to readable text
-  const formattedSkills = skills.map(skill => {
+  // 格式化技能
+  const formattedSkills = formData.personalInfo.skills.map(skill => {
     return `- ${skill.name}: ${mapSkillLevelToText(skill.level)}`;
   }).join('\n');
   
-  // Format work experience
-  const formattedWorkExperience = workExperience.map(exp => {
-    return `- ${exp.company}${exp.position ? `，職位：${exp.position}` : ''}${exp.duration ? `，時間：${exp.duration}` : ''}${exp.description ? `\n  描述：${exp.description}` : ''}`;
+  // 格式化工作經驗
+  const formattedWorkExperience = formData.personalInfo.workExperience.map(exp => {
+    const duration = exp.isCurrent
+      ? `${exp.startDate} 至今`
+      : `${exp.startDate} - ${exp.endDate}`;
+    
+    return `- ${exp.company}${exp.position ? `，職位：${exp.position}` : ''}${duration ? `，時間：${duration}` : ''}${exp.description ? `\n  描述：${exp.description}` : ''}`;
   }).join('\n');
   
-  // Construct prompt based on user inputs
-  let prompt = `請幫我寫一份${purpose ? `用於${purpose}的` : ''}自我介紹`;
+  // 使用實際職位信息，優先使用specificPosition
+  const jobPosition = formData.industrySettings.specificPosition || '';
   
-  if (jobTitle) {
-    prompt += `，應徵職位是${jobTitle}`;
+  // 格式化關鍵詞
+  const formattedKeywords = formData.industrySettings.keywords && formData.industrySettings.keywords.length > 0 
+    ? formData.industrySettings.keywords.join('、') 
+    : '';
+  
+  // 格式化重點領域
+  const formattedFocusAreas = formData.industrySettings.focusAreas && formData.industrySettings.focusAreas.length > 0
+    ? formData.industrySettings.focusAreas.join('、')
+    : '';
+  
+  // 檢查是否使用自定義提示詞模板
+  if (formData.generationSettings.useCustomPrompt && formData.generationSettings.promptTemplate) {
+    console.log('[GENERATE_PROMPT] 使用自定義提示詞模板');
+    
+    // 創建變數映射對象
+    const variables: Record<string, string> = {
+      'name': formData.personalInfo.name || '',
+      'age': formData.personalInfo.age || '',
+      'location': '', // 如果您的表單中有location字段，則添加它
+      'education': formattedEducation,
+      'skills': formattedSkills,
+      'experience': formattedWorkExperience,
+      'industry': formData.industrySettings.industry || '',
+      'job_position': jobPosition,
+      'language': formData.generationSettings.language || 'Chinese',
+      'tone': formData.generationSettings.tone || 'Professional',
+      'length': formData.generationSettings.outputLength || 'Medium',
+      'duration': formData.generationSettings.duration || '60',
+      'target_audience': '', // 如果您的表單中有targetAudience字段，則添加它
+      'keywords': formattedKeywords,
+      'focus_areas': formattedFocusAreas,
+      'projects': formData.personalInfo.projects || '',
+      'style': formData.generationSettings.style || 'balanced'
+    };
+    
+    console.log('[GENERATE_PROMPT] 使用的模板變數:', {
+      industry: formData.industrySettings.industry,
+      job_position: jobPosition,
+      language: formData.generationSettings.language, 
+      duration: formData.generationSettings.duration,
+      keywords: formattedKeywords,
+      style: formData.generationSettings.style
+    });
+    
+    // 替換模板中的變數
+    let finalPrompt = formData.generationSettings.promptTemplate;
+    Object.entries(variables).forEach(([key, value]) => {
+      finalPrompt = finalPrompt.replace(new RegExp(`{${key}}`, 'g'), value || '');
+    });
+    
+    return finalPrompt;
   }
   
-  if (industry) {
-    prompt += `，目標行業是${industry}`;
+  // 如果沒有使用自定義模板，則使用預設提示詞格式
+  let prompt = `請幫我寫一份自我介紹`;
+  
+  if (jobPosition) {
+    prompt += `，應徵職位是${jobPosition}`;
+  }
+  
+  if (formData.industrySettings.industry) {
+    prompt += `，目標行業是${formData.industrySettings.industry}`;
   }
   
   prompt += `。\n\n個人資料：`;
   
-  if (name) prompt += `\n- 姓名：${name}`;
-  if (age) prompt += `\n- 年齡：${age}`;
-  if (location) prompt += `\n- 所在地：${location}`;
+  if (formData.personalInfo.name) prompt += `\n- 姓名：${formData.personalInfo.name}`;
+  if (formData.personalInfo.age) prompt += `\n- 年齡：${formData.personalInfo.age}`;
   
   // Education information
   if (formattedEducation) {
@@ -105,20 +135,14 @@ export const generatePrompt = (formData: FormData): string => {
   
   // Additional requirements
   prompt += `\n\n要求：`;
-  prompt += `\n- 語言：${language}`;
-  prompt += `\n- 語調：${tone}`;
-  prompt += `\n- 長度：${length}`;
+  prompt += `\n- 語言：${formData.generationSettings.language || 'Chinese'}`;
+  prompt += `\n- 語調：${formData.generationSettings.tone || 'Professional'}`;
+  prompt += `\n- 長度：${formData.generationSettings.outputLength || 'Medium'}`;
+  prompt += `\n- 時長：${formData.generationSettings.duration || '60'} 秒`;
+  prompt += `\n- 風格：${formData.generationSettings.style || 'balanced'}`;
   
-  if (targetAudience) {
-    prompt += `\n- 目標讀者：${targetAudience}`;
-  }
-  
-  if (includeHeader) {
-    prompt += `\n- 需要包含標題`;
-  }
-  
-  if (focusAreas && focusAreas.length > 0) {
-    prompt += `\n- 重點突出：${focusAreas.join('、')}`;
+  if (formattedFocusAreas) {
+    prompt += `\n- 重點突出：${formattedFocusAreas}`;
   }
   
   prompt += `\n\n請直接給我完整的自我介紹文本，不要包含任何解釋或前言後語。`;
@@ -152,7 +176,7 @@ export const generateSelfIntro = async (
         messages: [
           {
             role: 'system',
-            content: '你是一位專業的自我介紹撰寫專家，可以根據用戶提供的信息撰寫出適合不同場合的自我介紹。'
+            content: '你是一個專業的人力資源專家，專注於協助面試者撰寫、改善及優化他們「面試時使用」的「自我介紹講稿」。你會使用問答的方式，從使用者的回答中獲得你需要的資訊，最後生成一段完整的「面試用自我介紹」。以台灣企業為主，以繁體中文問答。當使用問答模式時，一次只詢問一個問題，避免一次詢問多個問題。'
           },
           {
             role: 'user',
