@@ -53,6 +53,7 @@ export interface PromptTemplate {
   name: string;
   content: string;
   description: string;
+  systemPrompt?: string;
 }
 
 export interface GenerationSettings {
@@ -140,19 +141,8 @@ const defaultFormData: FormData = {
         id: 'default',
         name: '預設通用模板',
         description: '全方位展示您的教育、技能和工作經驗的通用模板。',
-        content: '請幫我寫一份自我介紹，應徵職位是{job_position}，目標行業是{industry}。\n\n個人資料：\n- 姓名：{name}\n- 年齡：{age}\n- 所在地：{location}\n\n教育背景：\n{education}\n\n技能專長：\n{skills}\n\n工作經驗：\n{experience}\n\n要求：\n- 語言：{language}\n- 語調：{tone}\n- 長度：{length}\n- 目標讀者：{target_audience}\n- 重點突出：{focus_areas}\n\n請直接給我完整的自我介紹文本，不要包含任何解釋或前言後語。'
-      },
-      'technical': {
-        id: 'technical',
-        name: '技術專業型模板',
-        description: '適合技術職位面試，著重展示您的技術能力和專業成就。',
-        content: '請生成一份技術導向的{language}自我介紹，時長{duration}秒，適用於{industry}行業的技術職位面試。\n\n重點內容：\n1. 簡短介紹教育背景和技術專業\n2. 詳細說明技術棧和專業能力，特別是{keywords}\n3. 技術成就展示：具體陳述如何運用技術解決問題，包含量化的成果\n4. 技術專案經驗：簡要描述專案中使用的技術和實現的功能\n5. 技術學習能力和持續進修的態度\n\n整體應以專業技術語言為主，避免過多非技術內容，確保能在{duration}秒內說完。'
-      },
-      'achievement': {
-        id: 'achievement',
-        name: '成就導向型模板',
-        description: '側重於展示您的職業成就和量化成果，適合需要強調成功經驗的場合。',
-        content: '請使用{language}生成一份以成就為導向的自我介紹，時長{duration}秒，適合{industry}行業的{job_position}職位申請。\n\n重點突出以下成就：\n1. 開場：簡要介紹自己並表明申請意向\n2. 最顯著的職業成就：詳述2-3個最具影響力的成就，並量化結果\n3. 與{industry}相關的專案成果：特別是涉及的關鍵貢獻\n4. 獲得的認可和獎項\n5. 這些成就如何使你成為{job_position}的理想人選\n\n整體風格應{style}，重點強調可量化的成果和解決問題的能力。'
+        content: '請幫我寫一份自我介紹，應徵職位是{job_position}，目標行業是{industry}。\n\n個人資料：\n- 姓名：{name}\n- 年齡：{age}\n- 所在地：{location}\n\n教育背景：\n{education}\n\n技能專長：\n{skills}\n\n工作經驗：\n{experience}\n\n要求：\n- 語言：{language}\n- 語調：{tone}\n- 長度：{length}\n- 目標讀者：{target_audience}\n- 重點突出：{focus_areas}\n\n請直接給我完整的自我介紹文本，不要包含任何解釋或前言後語。',
+        systemPrompt: '你是一位專業的求職顧問，擅長幫助求職者撰寫有說服力的自我介紹。請基於用戶提供的信息，創建一份簡潔有力的自我介紹。'
       }
     },
     tone: 'Professional',
@@ -730,15 +720,18 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
 
   // Initialize form data with localStorage values or defaults
   useEffect(() => {
+    console.log('Initializing prompt templates...');
+    
     // Get prompts data from localStorage if available
     try {
       // First, check if we have templates in localStorage
       const storedTemplates = localStorage.getItem('prompt_templates');
       
       if (storedTemplates) {
+        console.log('Found existing templates in localStorage');
         // If we have stored templates, use them directly without merging with defaults
         try {
-        const parsedTemplates = JSON.parse(storedTemplates);
+          const parsedTemplates = JSON.parse(storedTemplates);
           if (parsedTemplates && typeof parsedTemplates === 'object') {
             console.log('Loaded stored templates from localStorage:', Object.keys(parsedTemplates).length);
             
@@ -747,17 +740,30 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
             const currentPromptTemplate = localStorage.getItem('current_prompt_template') || '';
             const useCustomPromptSetting = localStorage.getItem('use_custom_prompt') || 'false';
             
+            // Verify we have at least the default template
+            if (!parsedTemplates['default']) {
+              console.warn('Default template missing from stored templates, adding it back');
+              parsedTemplates['default'] = defaultFormData.generationSettings.promptTemplates['default'];
+            }
+            
             // Update form data with stored templates and settings
-          setFormData(prev => ({
-            ...prev,
-            generationSettings: {
-              ...prev.generationSettings,
+            setFormData(prev => ({
+              ...prev,
+              generationSettings: {
+                ...prev.generationSettings,
                 promptTemplates: parsedTemplates,
                 activePromptId: selectedTemplateId,
                 promptTemplate: currentPromptTemplate || (parsedTemplates[selectedTemplateId]?.content || ''),
                 useCustomPrompt: useCustomPromptSetting === 'true'
-            }
-          }));
+              }
+            }));
+            
+            console.log('Successfully loaded prompt templates from localStorage');
+            // Early return to avoid initializing with defaults
+            return;
+          } else {
+            console.error('Stored templates are not in the expected format');
+            fallbackToDefaultTemplates();
           }
         } catch (templateError) {
           console.error('Error parsing stored template collection:', templateError);
@@ -779,12 +785,13 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
   
   // Helper function to initialize with default templates
   const initializeWithDefaultTemplates = () => {
+    console.log('Initializing with default templates');
     const defaultTemplates = {...defaultFormData.generationSettings.promptTemplates};
     
-        setFormData(prev => ({
-          ...prev,
-          generationSettings: {
-            ...prev.generationSettings,
+    setFormData(prev => ({
+      ...prev,
+      generationSettings: {
+        ...prev.generationSettings,
         promptTemplates: defaultTemplates,
         activePromptId: 'default',
         promptTemplate: defaultTemplates['default']?.content || '',
@@ -796,6 +803,13 @@ export const FormProvider = ({ children }: { children: ReactNode }) => {
   // Helper function to save default templates to localStorage
   const saveDefaultTemplatesToLocalStorage = () => {
     try {
+      // First check if templates already exist to avoid overwriting
+      const existingTemplates = localStorage.getItem('prompt_templates');
+      if (existingTemplates) {
+        console.log('Templates already exist in localStorage, not saving defaults');
+        return;
+      }
+      
       const defaultTemplates = {...defaultFormData.generationSettings.promptTemplates};
       localStorage.setItem('prompt_templates', JSON.stringify(defaultTemplates));
       localStorage.setItem('selected_prompt_template_id', 'default');

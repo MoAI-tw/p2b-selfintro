@@ -66,7 +66,7 @@ export const generatePrompt = (formData: FormData): string => {
     // 創建變數映射對象
     const variables: Record<string, string> = {
       'name': formData.personalInfo.name || '',
-      'age': formData.personalInfo.age || '',
+      'age': formData.personalInfo.birthday ? new Date().getFullYear() - new Date(formData.personalInfo.birthday).getFullYear() + '歲' : '',
       'location': '', // 如果您的表單中有location字段，則添加它
       'education': formattedEducation,
       'skills': formattedSkills,
@@ -116,7 +116,11 @@ export const generatePrompt = (formData: FormData): string => {
   prompt += `。\n\n個人資料：`;
   
   if (formData.personalInfo.name) prompt += `\n- 姓名：${formData.personalInfo.name}`;
-  if (formData.personalInfo.age) prompt += `\n- 年齡：${formData.personalInfo.age}`;
+  // 計算年齡並顯示
+  if (formData.personalInfo.birthday) {
+    const age = new Date().getFullYear() - new Date(formData.personalInfo.birthday).getFullYear();
+    prompt += `\n- 年齡：${age}歲`;
+  }
   
   // Education information
   if (formattedEducation) {
@@ -164,6 +168,16 @@ export const generateSelfIntro = async (
     
     // Get API endpoints
     const apiEndpoint = 'https://api.openai.com/v1/chat/completions';
+    
+    // 獲取系統提示詞
+    let systemPrompt = '你是一個專業的人力資源專家，專注於協助面試者撰寫、改善及優化他們「面試時使用」的「自我介紹講稿」。你會使用問答的方式，從使用者的回答中獲得你需要的資訊，最後生成一段完整的「面試用自我介紹」。以台灣企業為主，以繁體中文問答。當使用問答模式時，一次只詢問一個問題，避免一次詢問多個問題。';
+    
+    // 如果使用自定義提示詞模板並且有設定系統提示詞，則使用自定義的系統提示詞
+    if (formData.generationSettings.useCustomPrompt && 
+        formData.generationSettings.activePromptId && 
+        formData.generationSettings.promptTemplates[formData.generationSettings.activePromptId]?.systemPrompt) {
+      systemPrompt = formData.generationSettings.promptTemplates[formData.generationSettings.activePromptId].systemPrompt || systemPrompt;
+    }
   
     const response = await fetch(apiEndpoint, {
       method: 'POST',
@@ -176,7 +190,7 @@ export const generateSelfIntro = async (
         messages: [
           {
             role: 'system',
-            content: '你是一個專業的人力資源專家，專注於協助面試者撰寫、改善及優化他們「面試時使用」的「自我介紹講稿」。你會使用問答的方式，從使用者的回答中獲得你需要的資訊，最後生成一段完整的「面試用自我介紹」。以台灣企業為主，以繁體中文問答。當使用問答模式時，一次只詢問一個問題，避免一次詢問多個問題。'
+            content: systemPrompt
           },
           {
             role: 'user',

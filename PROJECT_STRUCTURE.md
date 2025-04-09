@@ -163,13 +163,24 @@ The application offers two primary features:
 
 ## Data Flow
 
-1. User creates a new project or opens an existing one
-2. User fills in personal information (Profile page)
-3. User configures industry settings (Industry page)
-4. User adjusts generation settings (Settings page)
-5. Application generates a self-introduction using selected LLM
-6. Result is displayed and can be saved, copied, or downloaded
-7. Projects are stored in localStorage for persistence
+1. User creates a new project or opens an existing one (`src/pages/Projects/index.tsx`)
+2. User fills in personal information (Profile page) (`src/pages/Profile.tsx`)
+3. User configures industry settings (Industry page) (`src/pages/Industry.tsx`)
+4. User adjusts generation settings (Settings page) (`src/pages/Settings.tsx`)
+5. Application generates a self-introduction using selected LLM (`src/utils/openai.ts:156-208` or `src/utils/gemini.ts`)
+6. Result is displayed and can be saved, copied, or downloaded (`src/pages/Result.tsx`)
+7. Projects are stored in localStorage for persistence (`src/context/FormContext.tsx:428-461`)
+
+## Version Prompt Data Flow
+
+1. System first checks localStorage for previously saved prompt templates, and only loads predefined templates from FormContext if none exist (`src/context/FormContext.tsx:110-166`)
+2. User selects a target version or style for their self-introduction via the Versions page (`src/pages/Versions.tsx:18-199`)
+3. Selected version prompt gets combined with user input data through the prompt generation logic (`src/utils/openai.ts:27-147`)
+4. The combined prompt is sent to the selected LLM along with version-specific parameters (`src/utils/modelService.ts:32-73`)
+5. Generated content preserves version-specific characteristics and tone based on the settings
+6. Version metadata is saved with the project for consistent regeneration (`src/context/FormContext.tsx:96-112`)
+7. Users can compare outputs from different version prompts side-by-side (`src/pages/Versions.tsx:133-142`)
+8. Custom version prompts can be created and saved via the Prompt Editor (`src/pages/PromptEditor/index.tsx`)
 
 ## Technologies Used
 

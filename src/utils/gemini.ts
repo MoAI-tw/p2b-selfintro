@@ -16,6 +16,19 @@ export const generateGeminiSelfIntro = async (
     // Use the same prompt generation logic as OpenAI
     const prompt = generatePrompt(formData);
     
+    // 獲取系統提示詞
+    let systemPrompt = '你是一個專業的人力資源專家，專注於協助面試者撰寫、改善及優化他們「面試時使用」的「自我介紹講稿」。';
+    
+    // 如果使用自定義提示詞模板並且有設定系統提示詞，則使用自定義的系統提示詞
+    if (formData.generationSettings.useCustomPrompt && 
+        formData.generationSettings.activePromptId && 
+        formData.generationSettings.promptTemplates[formData.generationSettings.activePromptId]?.systemPrompt) {
+      systemPrompt = formData.generationSettings.promptTemplates[formData.generationSettings.activePromptId].systemPrompt || systemPrompt;
+    }
+    
+    // 組合系統提示詞和用戶提示詞
+    const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+    
     // Determine the API endpoint based on the model ID
     let endpoint = '';
     if (modelId === 'gemini-pro') {
@@ -59,7 +72,7 @@ export const generateGeminiSelfIntro = async (
           {
             parts: [
               {
-                text: prompt
+                text: fullPrompt
               }
             ]
           }
