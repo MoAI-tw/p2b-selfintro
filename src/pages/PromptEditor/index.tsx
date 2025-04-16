@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useFormContext } from '../../context/FormContext';
 import { useApiKey } from '../../context/ApiKeyContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faPlus, faTrash, faInfoCircle, faEdit, faArrowLeft, faCheck, faFlask, faTimes, faCog, faDice, faCopy } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faPlus, faTrash, faInfoCircle, faEdit, faArrowLeft, faCheck, faFlask, faTimes, faCog, faDice, faCopy, faVolumeUp, faPause, faDownload, faRedo, faPlay } from '@fortawesome/free-solid-svg-icons';
 import { generateSelfIntroduction } from '../../utils/modelService';
 import { ModelProvider } from '../../context/ApiKeyContext';
 import ApiSettings from '../../components/ApiKeySettings';
@@ -35,6 +35,53 @@ const PromptEditor: React.FC = () => {
   const [processedPrompt, setProcessedPrompt] = useState<string>('');
   const [testData, setTestData] = useState<any>(null);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+  const [currentUtterance, setCurrentUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [ttsProvider, setTtsProvider] = useState<'browser' | 'openai'>('browser');
+  const [selectedVoice, setSelectedVoice] = useState('alloy'); // OpenAI voice options: alloy, echo, fable, onyx, nova, shimmer
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const [utterance, setUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+
+  // Initialize speech synthesis and audio recording
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if ('speechSynthesis' in window) {
+        setSpeechSynthesis(window.speechSynthesis);
+      }
+      
+      // Initialize audio recording
+      const setupAudioRecording = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const recorder = new MediaRecorder(stream);
+          setMediaRecorder(recorder);
+
+          recorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              setAudioChunks(prev => [...prev, event.data]);
+            }
+          };
+
+          recorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            setAudioBlob(audioBlob);
+            setAudioChunks([]);
+          };
+        } catch (error) {
+          console.error('Error setting up audio recording:', error);
+        }
+      };
+
+      setupAudioRecording();
+    }
+  }, []);
 
   // 從 FormContext 加載模板
   useEffect(() => {
@@ -262,9 +309,23 @@ const PromptEditor: React.FC = () => {
     };
   };
 
-  // 處理提示詞模板和生成
+  // Add scroll to result function
+  const scrollToResult = () => {
+    const resultElement = document.getElementById('generation-result');
+    if (resultElement) {
+      resultElement.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // Modify processTemplateAndGenerate function
   const processTemplateAndGenerate = async (shouldGenerate: boolean = false) => {
     if (!currentTemplate) return;
+    
+    // Reset audio states
+    handleReset();
+    setAudio(null);
+    setAudioUrl(null);
+    setUtterance(null);
     
     // 生成隨機測試資料
     const newTestData = generateRandomTestData();
@@ -283,15 +344,13 @@ const PromptEditor: React.FC = () => {
       setIsTestLoading(true);
       
       try {
-        // 準備生成設定，使用當前模板的系統提示詞
+        // 準備生成設定
         const genSettings = {
           ...formData.generationSettings,
           promptTemplate: currentTemplate.content,
-          systemPrompt: currentTemplate.systemPrompt // 使用當前模板的系統提示詞
+          systemPrompt: currentTemplate.systemPrompt
         };
 
-        // console log out systemPrompt
-        console.log('systemPrompt', currentTemplate.systemPrompt);
         // 調用 LLM 生成
         const result = await generateSelfIntroduction(
           {
@@ -299,7 +358,7 @@ const PromptEditor: React.FC = () => {
               ...formData,
               personalInfo: newTestData.personalInfo,
               industrySettings: newTestData.industrySettings,
-              generationSettings: genSettings // 使用包含當前系統提示詞的設定
+              generationSettings: genSettings
             },
             apiKey,
             selectedModel: selectedModel.id,
@@ -312,6 +371,8 @@ const PromptEditor: React.FC = () => {
           setTestResult(`測試時發生錯誤: ${result.error}`);
         } else if (result.data) {
           setTestResult(result.data);
+          // 生成完成後自動滾動到結果區域
+          setTimeout(scrollToResult, 100);
         } else {
           setTestResult('生成結果格式錯誤');
         }
@@ -385,6 +446,225 @@ const PromptEditor: React.FC = () => {
     } catch (err) {
       console.error('Failed to copy text: ', err);
     }
+  };
+
+  // Function to generate audio using OpenAI TTS API
+  const generateOpenAITTS = async (text: string) => {
+    if (!apiKey) {
+      console.error('OpenAI API key is required');
+      return null;
+    }
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: text,
+          voice: selectedVoice,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.statusText}`);
+      }
+
+      const audioBlob = await response.blob();
+      return URL.createObjectURL(audioBlob);
+    } catch (error) {
+      console.error('Failed to generate audio with OpenAI:', error);
+      return null;
+    }
+  };
+
+  // Handle browser TTS
+  const handleBrowserTTS = () => {
+    if (!testResult) return;
+    
+    // Cancel any existing speech
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    }
+
+    const newUtterance = new SpeechSynthesisUtterance(testResult);
+    const voices = window.speechSynthesis.getVoices();
+    const chineseVoice = voices.find(voice => voice.lang.includes('zh'));
+    if (chineseVoice) {
+      newUtterance.voice = chineseVoice;
+    }
+
+    newUtterance.onend = () => {
+      setIsPlaying(false);
+    };
+
+    setUtterance(newUtterance);
+    window.speechSynthesis.speak(newUtterance);
+    setIsPlaying(true);
+  };
+
+  // Handle OpenAI TTS
+  const handleOpenAITTS = async () => {
+    if (!testResult || !apiKey) return;
+    
+    try {
+      const url = await generateOpenAITTS(testResult);
+      if (url) {
+        const newAudio = new Audio(url);
+        newAudio.onended = () => setIsPlaying(false);
+        setAudio(newAudio);
+        newAudio.play();
+        setIsPlaying(true);
+        setAudioUrl(url);
+      }
+    } catch (error) {
+      console.error('Failed to generate OpenAI TTS:', error);
+    }
+  };
+
+  // Unified play/pause control
+  const handlePlayPause = () => {
+    if (ttsProvider === 'browser') {
+      if (isPlaying) {
+        window.speechSynthesis.pause();
+      } else {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        } else if (utterance) {
+          window.speechSynthesis.speak(utterance);
+        } else {
+          handleBrowserTTS();
+        }
+      }
+    } else {
+      if (audio) {
+        if (isPlaying) {
+          audio.pause();
+        } else {
+          audio.play();
+        }
+      } else {
+        handleOpenAITTS();
+      }
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  // Unified reset control
+  const handleReset = () => {
+    if (ttsProvider === 'browser') {
+      window.speechSynthesis.cancel();
+      setUtterance(null);
+    } else {
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    }
+    setIsPlaying(false);
+  };
+
+  // Unified replay control
+  const handleReplay = () => {
+    handleReset();
+    if (ttsProvider === 'browser') {
+      handleBrowserTTS();
+    } else {
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play();
+        setIsPlaying(true);
+      } else {
+        handleOpenAITTS();
+      }
+    }
+  };
+
+  // Generate TTS based on provider
+  const handleTextToSpeech = async () => {
+    setIsGeneratingAudio(true);
+    try {
+      if (ttsProvider === 'openai') {
+        await handleOpenAITTS();
+      } else {
+        handleBrowserTTS();
+      }
+    } catch (error) {
+      console.error('Error generating audio:', error);
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (audio) {
+        audio.pause();
+        audio.src = '';
+      }
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audio, audioUrl]);
+
+  // Add TTS settings component
+  const TTSSettings = () => (
+    <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+      <h3 className="text-lg font-medium mb-2">TTS 設定</h3>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            TTS 提供者
+          </label>
+          <select
+            value={ttsProvider}
+            onChange={(e) => setTtsProvider(e.target.value as 'browser' | 'openai')}
+            className="w-full p-2 border border-gray-300 rounded-md"
+          >
+            <option value="browser">瀏覽器內建 TTS</option>
+            <option value="openai">OpenAI TTS</option>
+          </select>
+        </div>
+        {ttsProvider === 'openai' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              OpenAI 語音
+            </label>
+            <select
+              value={selectedVoice}
+              onChange={(e) => setSelectedVoice(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md"
+            >
+              <option value="alloy">Alloy</option>
+              <option value="echo">Echo</option>
+              <option value="fable">Fable</option>
+              <option value="onyx">Onyx</option>
+              <option value="nova">Nova</option>
+              <option value="shimmer">Shimmer</option>
+            </select>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const handleDownload = () => {
+    if (!audioUrl) return;
+    
+    const a = document.createElement('a');
+    a.href = audioUrl;
+    a.download = `self-introduction-${new Date().toISOString()}.wav`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   return (
@@ -599,6 +879,23 @@ const PromptEditor: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                <TTSSettings />
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="text-lg font-medium">生成結果</h4>
+                  <div className="flex items-center space-x-2">
+                    {testResult && (
+                      <button
+                        onClick={() => processTemplateAndGenerate(true)}
+                        className="flex items-center px-3 py-1 text-sm bg-indigo-600 text-white hover:bg-indigo-700 rounded transition-colors"
+                        title="重新生成"
+                      >
+                        <FontAwesomeIcon icon={faRedo} className="mr-1" />
+                        重新生成
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Test Result Modal */}
@@ -667,7 +964,135 @@ const PromptEditor: React.FC = () => {
                       <div>
                         <div className="flex justify-between items-center mb-2">
                           <h4 className="text-lg font-medium">生成結果</h4>
-                          {testResult && (
+                          <div className="flex items-center space-x-2">
+                            {testResult && (
+                              <button
+                                onClick={() => processTemplateAndGenerate(true)}
+                                className="flex items-center px-3 py-1 text-sm bg-indigo-600 text-white hover:bg-indigo-700 rounded transition-colors"
+                                title="重新生成"
+                              >
+                                <FontAwesomeIcon icon={faRedo} className="mr-1" />
+                                重新生成
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div id="generation-result" className="bg-gray-50 p-4 rounded-lg">
+                          <pre className="whitespace-pre-wrap text-sm">
+                            {testResult || '點擊上方按鈕開始生成'}
+                          </pre>
+                        </div>
+                      </div>
+
+                      {testResult && (
+                        <>
+                          {/* TTS Settings */}
+                          <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                            <h3 className="text-lg font-medium mb-2">TTS 設定</h3>
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  TTS 提供者
+                                </label>
+                                <select
+                                  value={ttsProvider}
+                                  onChange={(e) => setTtsProvider(e.target.value as 'browser' | 'openai')}
+                                  className="w-full p-2 border border-gray-300 rounded-md"
+                                >
+                                  <option value="browser">瀏覽器內建 TTS</option>
+                                  <option value="openai">OpenAI TTS</option>
+                                </select>
+                              </div>
+                              {ttsProvider === 'openai' && (
+                                <div>
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    OpenAI 語音
+                                  </label>
+                                  <select
+                                    value={selectedVoice}
+                                    onChange={(e) => setSelectedVoice(e.target.value)}
+                                    className="w-full p-2 border border-gray-300 rounded-md"
+                                  >
+                                    <option value="alloy">Alloy</option>
+                                    <option value="echo">Echo</option>
+                                    <option value="fable">Fable</option>
+                                    <option value="onyx">Onyx</option>
+                                    <option value="nova">Nova</option>
+                                    <option value="shimmer">Shimmer</option>
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Audio Controls */}
+                          <div className="mt-4 flex items-center space-x-2 justify-end">
+                            {isGeneratingAudio ? (
+                              <button
+                                disabled
+                                className="flex items-center px-3 py-1 text-sm text-gray-400 cursor-not-allowed"
+                                title="生成中"
+                              >
+                                <FontAwesomeIcon 
+                                  icon={faVolumeUp} 
+                                  className="mr-1 animate-pulse"
+                                />
+                                生成中...
+                              </button>
+                            ) : (
+                              <>
+                                {!isPlaying && !audio && !utterance ? (
+                                  <button
+                                    onClick={handleTextToSpeech}
+                                    className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+                                    title="生成語音"
+                                  >
+                                    <FontAwesomeIcon icon={faVolumeUp} className="mr-1" />
+                                    生成語音
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={handlePlayPause}
+                                      className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+                                      title={isPlaying ? "暫停" : "播放"}
+                                    >
+                                      <FontAwesomeIcon 
+                                        icon={isPlaying ? faPause : faPlay} 
+                                        className="mr-1"
+                                      />
+                                      {isPlaying ? "暫停" : "播放"}
+                                    </button>
+                                    <button
+                                      onClick={handleReplay}
+                                      className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+                                      title="重播"
+                                    >
+                                      <FontAwesomeIcon icon={faRedo} className="mr-1" />
+                                      重播
+                                    </button>
+                                    <button
+                                      onClick={handleReset}
+                                      className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+                                      title="重置"
+                                    >
+                                      <FontAwesomeIcon icon={faTimes} className="mr-1" />
+                                      重置
+                                    </button>
+                                  </>
+                                )}
+                                {audioUrl && ttsProvider === 'openai' && (
+                                  <button
+                                    onClick={handleDownload}
+                                    className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-indigo-600 transition-colors"
+                                    title="下載音檔"
+                                  >
+                                    <FontAwesomeIcon icon={faDownload} className="mr-1" />
+                                    下載音檔
+                                  </button>
+                                )}
+                              </>
+                            )}
                             <button
                               onClick={() => copyToClipboard(testResult)}
                               className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-indigo-600 transition-colors"
@@ -679,14 +1104,9 @@ const PromptEditor: React.FC = () => {
                               />
                               {copySuccess ? '已複製' : '複製'}
                             </button>
-                          )}
-                        </div>
-                        <div className="bg-gray-50 p-4 rounded-lg">
-                          <pre className="whitespace-pre-wrap text-sm">
-                            {testResult || '點擊上方按鈕開始生成'}
-                          </pre>
-                        </div>
-                      </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
